@@ -1,0 +1,27 @@
+# === CRITIQUE : jetons d'accès et données personnelles ===
+# tidal_session.json contient les tokens OAuth TIDAL : quiconque l'a
+# accède à ton compte sans mot de passe.
+.apple2tidal/
+*session*.json
+backup_*.json
+
+# Exports Apple Music (toute ta bibliothèque, playlists, ISRC)
+apple_library.json
+*.xml
+Bibliothèque.xml
+Library.xml
+
+# Sorties de travail
+matches.json
+unmatched.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+
+# Suite de tests : locale, hors du depot
+tests/
