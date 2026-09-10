@@ -1,97 +1,131 @@
 # apple2tidal
 
-Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers TIDAL.
+**English** · [Français](README.fr.md)
 
-## 1. Exporter la bibliothèque Apple Music
+Transfers playlists, library, loved tracks and albums from Apple Music to TIDAL.
 
-### Option A — depuis le navigateur (recommandé, donne les ISRC)
+## 1. Export the Apple Music library
 
-1. Ouvre https://music.apple.com et connecte-toi.
-2. F12 → onglet **Console**. Si Chrome affiche un avertissement, tape `allow pasting` puis Entrée.
-3. Colle le contenu de `export_apple_music.js`, Entrée.
-4. Attends les logs `[export] …` ; `apple_library.json` se télécharge à la fin.
+### Option A — from the browser (recommended, provides ISRCs)
 
-Le JSON contient titres, playlists, titres aimés, albums, et l'ISRC de chaque titre lié au catalogue → le matching TIDAL est exact (`get_tracks_by_isrc`), la recherche fuzzy ne sert qu'en secours.
+1. Open https://music.apple.com and sign in.
+2. Press F12 → **Console** tab. If Chrome shows a warning, type `allow pasting` and press Enter.
+3. Paste the contents of `export_apple_music.js` and press Enter.
+4. Wait for the `[export] …` logs; `apple_library.json` downloads at the end.
 
-### Option B — depuis l'app Musique (Mac) / iTunes (Windows)
+The JSON contains tracks, playlists, loved tracks, albums, and the ISRC of every track linked to the catalog. TIDAL can resolve those directly (`get_tracks_by_isrc`), so fuzzy search is only a fallback.
 
-**Fichier → Bibliothèque → Exporter la bibliothèque…** → `Bibliothèque.xml`. Pas d'ISRC dans ce format : matching fuzzy uniquement.
+### Option B — from the Music app (Mac) / iTunes (Windows)
 
-## 2. Installer
+**File → Library → Export Library…** → `Library.xml`. This format carries no ISRC, so matching is fuzzy only.
+
+## 2. Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 3. Lancer
+## 3. Run
 
 ```bash
-# Étape conseillée : matching seul, aucune écriture sur TIDAL
+# Recommended first step: matching only, nothing is written to TIDAL
 python apple2tidal.py apple_library.json --dry-run
 
-# Puis, au choix :
-python apple2tidal.py apple_library.json --playlists              # recrée les playlists
-python apple2tidal.py apple_library.json --favorites              # toute la bibliothèque → titres favoris
-python apple2tidal.py apple_library.json --loved                  # seulement les titres "aimés" → favoris
-python apple2tidal.py apple_library.json --albums                 # albums complets → albums favoris
-python apple2tidal.py apple_library.json --all                    # tout
+# Then, as needed:
+python apple2tidal.py apple_library.json --playlists              # recreate playlists
+python apple2tidal.py apple_library.json --favorites              # whole library → favorite tracks
+python apple2tidal.py apple_library.json --loved                  # only Apple "loved" tracks → favorites
+python apple2tidal.py apple_library.json --albums                 # complete albums → favorite albums
+python apple2tidal.py apple_library.json --all                    # everything
 ```
 
-Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : ouvre-le, connecte-toi, le script continue seul. La session est sauvegardée dans `.apple2tidal/tidal_session.json`.
+On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the script continues on its own. The session is stored in `.apple2tidal/tidal_session.json`.
 
-## Options utiles
+## Options
 
-| Option | Effet |
+| Option | Effect |
 |---|---|
-| `--only "Nom"` | Ne traite que cette playlist (répétable) |
-| `--skip-smart` | Ignore les playlists intelligentes |
-| `--overwrite` | Vide et recrée une playlist TIDAL du même nom (sinon elle est ignorée) |
-| `--threshold 85` | Score minimal de matching (défaut 78). Monter = moins de faux positifs, plus de non-trouvés |
-| `--rematch` | Retente les titres non trouvés (utile après avoir baissé le seuil) |
-| `--workers 8` | Requêtes TIDAL en parallèle (défaut 8) |
-| `--delay 0.5` | Pause entre requêtes, à ajouter seulement si TIDAL rate-limit |
-| `--reset` | **Destructif** : vide le compte TIDAL avant l'import (voir ci-dessous) |
-| `--reset-scope all` | `--reset` supprime *toutes* tes playlists, pas seulement les homonymes Apple |
-| `--yes` | Saute la confirmation de `--reset` |
+| `--only "Name"` | Process only this playlist (repeatable) |
+| `--skip-smart` | Ignore smart playlists |
+| `--overwrite` | Clear and refill an existing TIDAL playlist of the same name (otherwise it is skipped) |
+| `--threshold 85` | Minimum match score (default 78). Higher means fewer false positives and more unmatched tracks |
+| `--rematch` | Retry unmatched tracks (useful after lowering the threshold) |
+| `--workers 8` | Parallel TIDAL requests (default 8) |
+| `--delay 0.5` | Pause between requests; add only if TIDAL rate-limits |
+| `--reset` | **Destructive**: empties the TIDAL account before importing (see below) |
+| `--reset-scope all` | Makes `--reset` delete *all* playlists, not only those matching an Apple playlist name |
+| `--yes` | Skip the `--reset` confirmation prompt |
 
-## Repartir de zéro (`--reset`)
+## Emptying the TIDAL account without reimporting (`--wipe`)
 
 ```bash
-python apple2tidal.py apple_library.json --all --reset --dry-run   # montre ce qui serait supprimé
-python apple2tidal.py apple_library.json --all --reset             # demande confirmation puis supprime + réimporte
+python apple2tidal.py --wipe --dry-run   # list what would be deleted
+python apple2tidal.py --wipe             # ask for confirmation, delete, stop
 ```
 
-Ce que `--reset` supprime, en fonction des actions demandées :
-- avec `--playlists` : tes playlists TIDAL (celles que tu as créées ; les playlists d'autres utilisateurs que tu suis ne sont pas touchées)
-- avec `--favorites` / `--loved` : tous tes titres favoris
-- avec `--albums` : tous tes albums favoris
+Deletes playlists, favorite tracks, favorite albums and favorite artists, and unfollows followed playlists (`--keep-followed` preserves them). Nothing is imported afterwards: the account stays empty.
 
-Par défaut (`--reset-scope imported`), seules les playlists portant le nom d'une playlist de ton export Apple sont supprimées — celles que tu as créées toi-même sur TIDAL survivent. `--reset-scope all` supprime toutes tes playlists.
+The export file is not required. A JSON backup is written before any deletion, as with `--reset`.
 
-Avant toute suppression, l'état du compte (playlists avec leurs titres, favoris, albums) est écrit dans `.apple2tidal/backup_AAAAMMJJ_HHMMSS.json`. C'est une sauvegarde lisible, pas un bouton "annuler" : TIDAL n'a pas de corbeille, une playlist supprimée l'est définitivement.
+**`--wipe` is not `--reset`**: `--reset` empties *and then reimports* in the same command, so the account ends up mirroring the Apple export. `--wipe` is the one to use for a blank account.
 
-## Comment ça matche
+## Starting over (`--reset`)
 
-Si le titre a un ISRC (export JSON), il est résolu directement. Sinon chaque titre est cherché sur TIDAL (plusieurs requêtes : artiste + titre nettoyé, titre seul…) et les candidats sont notés :
-- titre 55 %, artiste 35 %, album 10 % (fuzzy, insensible aux accents/casse, "feat.", "Remastered", etc. retirés)
-- pénalité si la durée diffère de plus de 5 s, forte pénalité au-delà de 20 s
+```bash
+python apple2tidal.py apple_library.json --all --reset --dry-run   # show what would be deleted
+python apple2tidal.py apple_library.json --all --reset             # confirm, then delete + reimport
+```
 
-Les résultats sont mis en cache dans `.apple2tidal/matches.json` : interrompre et relancer reprend où ça en était. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv` avec les playlists concernées, pour les ajouter à la main.
+What `--reset` deletes depends on the requested actions:
+- with `--playlists`: playlists owned by the account (playlists created by other users and merely followed are left alone)
+- with `--favorites` / `--loved`: all favorite tracks
+- with `--albums`: all favorite albums
 
-## Vitesse
+By default (`--reset-scope imported`), only playlists whose name matches a playlist in the Apple export are deleted, so playlists created directly on TIDAL survive. `--reset-scope all` deletes every owned playlist.
 
-Trois choses jouent :
+Before any deletion, the state of the account (playlists with their tracks, favorites, albums) is written to `.apple2tidal/backup_YYYYMMDD_HHMMSS.json`. It is a readable backup, not an undo button: TIDAL has no trash, and a deleted playlist is gone for good.
 
-- **Parallélisme** : `--workers 8` par défaut. `--workers 16` va environ deux fois plus vite ; si tu vois des `[rate-limit] pause Xs`, redescends à 4-6 (ou ajoute `--delay 0.2`), sinon tu passes plus de temps en backoff qu'en requêtes.
-- **Déduplication** : un titre présent dans cinq playlists ne coûte qu'une recherche. Deux entrées sont considérées identiques si elles ont le même ISRC (ou, à défaut, le même artiste + titre normalisés).
-- **Cache** : `.apple2tidal/matches.json`. Une deuxième exécution ne refait aucune recherche. Ne le supprime pas.
+## How matching works
 
-À l'écriture, les titres déjà en favoris sont détectés et ignorés, et les suppressions de `--reset` sont parallélisées.
+A track with an ISRC (JSON export) is resolved directly. Otherwise it is searched on TIDAL through several queries (artist + cleaned title, title alone, and so on) and candidates are scored:
+- title 55%, artist 35%, album 10% (fuzzy, accent- and case-insensitive, with `feat.`, `Remastered` and similar suffixes stripped)
+- a penalty when durations differ by more than 5 s, a heavy penalty beyond 20 s
 
-## Limites
+Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
 
-- `tidalapi` est une lib non officielle : si TIDAL change son API, ça peut casser.
-- Les playlists Apple ne sont pas synchronisées ensuite ; c'est un import ponctuel.
-- Les titres exclusifs à Apple ou sous un autre nom sur TIDAL finiront dans `unmatched.csv`.
-- Le parallélisme repose sur la session HTTP de `tidalapi` ; au-delà de ~16 workers tu risques surtout de te faire limiter par TIDAL.
-- Les dossiers de playlists ne sont pas recréés (les playlists à l'intérieur le sont, à plat).
+## Speed
+
+Three factors matter:
+
+- **Parallelism**: `--workers 8` by default. `--workers 16` is roughly twice as fast; if `[rate-limit] pause Xs` messages appear, go back down to 4–6 (or add `--delay 0.2`), otherwise more time is spent backing off than requesting.
+- **Deduplication**: a track present in five playlists costs a single lookup. Two entries count as identical when they share an ISRC, or failing that a normalized artist and title.
+- **Cache**: `.apple2tidal/matches.json`. A second run performs no search at all. Do not delete it.
+
+On the write side, tracks already in favorites are detected and skipped, and `--reset` deletions run in parallel.
+
+## Security and privacy
+
+The repository contains code only, no secrets. The following files must never be committed; all of them are covered by the bundled `.gitignore`:
+
+| File | Why |
+|---|---|
+| `.apple2tidal/tidal_session.json` | TIDAL OAuth tokens. Anyone who obtains it gets account access without a password. |
+| `.apple2tidal/backup_*.json` | A full dump of the TIDAL account. |
+| `apple_library.json`, `*.xml` | The entire Apple library (tracks, playlists, ISRCs). |
+| `.apple2tidal/matches.json`, `unmatched.csv` | Listening history in plain text. |
+
+If one of them has already been committed, `git rm --cached` is not enough: the file remains in history. The history has to be rewritten (`git filter-repo`) **and** the TIDAL session revoked from the account settings.
+
+`export_apple_music.js` reads the `media-user-token` cookie and the Apple token embedded in the page to call the API. It uses the existing session, in the browser, and sends nothing anywhere else. As with any console snippet, read it before running it.
+
+## Limitations
+
+- `tidalapi` is unofficial: a change on TIDAL's side can break the tool at any time.
+- Apple playlists are not kept in sync afterwards; this is a one-time import.
+- Tracks exclusive to Apple, or listed under a different name on TIDAL, end up in `unmatched.csv`.
+- Parallelism relies on the `tidalapi` HTTP session; beyond roughly 16 workers the main effect is TIDAL rate-limiting.
+- Playlist folders are not recreated (the playlists inside are, flattened).
+
+## License
+
+MIT.
