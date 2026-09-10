@@ -6,10 +6,10 @@ Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers 
 
 ### Option A — depuis le navigateur (recommandé, donne les ISRC)
 
-1. Ouvre https://music.apple.com et connecte-toi.
-2. F12 → onglet **Console**. Si Chrome affiche un avertissement, tape `allow pasting` puis Entrée.
-3. Colle le contenu de `export_apple_music.js`, Entrée.
-4. Attends les logs `[export] …` ; `apple_library.json` se télécharge à la fin.
+1. Ouvrez https://music.apple.com et connectez-vous.
+2. F12 → onglet **Console**. Si Chrome affiche un avertissement, tapez `allow pasting` puis Entrée.
+3. Collez le contenu de `export_apple_music.js`, Entrée.
+4. Attendre les logs `[export] …` ; `apple_library.json` se télécharge à la fin.
 
 Le JSON contient titres, playlists, titres aimés, albums, et l'ISRC de chaque titre lié au catalogue → le matching TIDAL est exact (`get_tracks_by_isrc`), la recherche fuzzy ne sert qu'en secours.
 
@@ -37,7 +37,7 @@ python apple2tidal.py apple_library.json --albums                 # albums compl
 python apple2tidal.py apple_library.json --all                    # tout
 ```
 
-Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : ouvre-le, connecte-toi, le script continue seul. La session est sauvegardée dans `.apple2tidal/tidal_session.json`.
+Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : ouvrez-le, connectez-vous, le script continue seul. La session est sauvegardée dans `.apple2tidal/tidal_session.json`.
 
 ## Options utiles
 
@@ -66,7 +66,7 @@ Ce que `--reset` supprime, en fonction des actions demandées :
 - avec `--favorites` / `--loved` : tous tes titres favoris
 - avec `--albums` : tous tes albums favoris
 
-Par défaut (`--reset-scope imported`), seules les playlists portant le nom d'une playlist de ton export Apple sont supprimées — celles que tu as créées toi-même sur TIDAL survivent. `--reset-scope all` supprime toutes tes playlists.
+Par défaut (`--reset-scope imported`), seules les playlists portant le nom d'une playlist de ton export Apple sont supprimées — celles créées sur TIDAL survivent. `--reset-scope all` supprime toutes tes playlists.
 
 Avant toute suppression, l'état du compte (playlists avec leurs titres, favoris, albums) est écrit dans `.apple2tidal/backup_AAAAMMJJ_HHMMSS.json`. C'est une sauvegarde lisible, pas un bouton "annuler" : TIDAL n'a pas de corbeille, une playlist supprimée l'est définitivement.
 
@@ -82,7 +82,7 @@ Les résultats sont mis en cache dans `.apple2tidal/matches.json` : interrompre 
 
 Trois choses jouent :
 
-- **Parallélisme** : `--workers 8` par défaut. `--workers 16` va environ deux fois plus vite ; si tu vois des `[rate-limit] pause Xs`, redescends à 4-6 (ou ajoute `--delay 0.2`), sinon tu passes plus de temps en backoff qu'en requêtes.
+- **Parallélisme** : `--workers 8` par défaut. `--workers 16` va environ deux fois plus vite ; si `[rate-limit] pause Xs`, redescendre à 4-6 (ou ajoute `--delay 0.2`), sinon passe plus de temps en backoff qu'en requêtes.
 - **Déduplication** : un titre présent dans cinq playlists ne coûte qu'une recherche. Deux entrées sont considérées identiques si elles ont le même ISRC (ou, à défaut, le même artiste + titre normalisés).
 - **Cache** : `.apple2tidal/matches.json`. Une deuxième exécution ne refait aucune recherche. Ne le supprime pas.
 
@@ -91,7 +91,7 @@ Trois choses jouent :
 ## Limites
 
 - `tidalapi` est une lib non officielle : si TIDAL change son API, ça peut casser.
-- Les playlists Apple ne sont pas synchronisées ensuite ; c'est un import ponctuel.
+- Les playlists Apple ne sont pas synchronisées ensuite : c'est un import ponctuel.
 - Les titres exclusifs à Apple ou sous un autre nom sur TIDAL finiront dans `unmatched.csv`.
-- Le parallélisme repose sur la session HTTP de `tidalapi` ; au-delà de ~16 workers tu risques surtout de te faire limiter par TIDAL.
+- Le parallélisme repose sur la session HTTP de `tidalapi` ; au-delà de ~16 workers risque de limite par TIDAL.
 - Les dossiers de playlists ne sont pas recréés (les playlists à l'intérieur le sont, à plat).
