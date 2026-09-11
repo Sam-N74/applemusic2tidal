@@ -33,6 +33,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from messages import LANGUAGES, resolve_lang, set_lang, t
+
 try:
     import tidalapi
 except ImportError:
@@ -148,21 +150,22 @@ def parse_xml(path: Path) -> tuple[dict[str, AppleTrack], list[ApplePlaylist]]:
         lib = plistlib.load(f)
 
     tracks: dict[str, AppleTrack] = {}
-    for tid, t in lib.get("Tracks", {}).items():
-        kind = t.get("Kind", "")
-        if "vid" in kind.lower() or t.get("Has Video") or t.get("Podcast") or t.get("Movie") or t.get("TV Show"):
+    for tid, raw in lib.get("Tracks", {}).items():
+        kind = raw.get("Kind", "")
+        if ("vid" in kind.lower() or raw.get("Has Video") or raw.get("Podcast")
+                or raw.get("Movie") or raw.get("TV Show")):
             continue
-        if not t.get("Name"):
+        if not raw.get("Name"):
             continue
         tracks[str(tid)] = AppleTrack(
             id=str(tid),
-            name=t.get("Name", ""),
-            artist=t.get("Artist", ""),
-            album=t.get("Album", ""),
-            album_artist=t.get("Album Artist", t.get("Artist", "")),
-            duration_ms=int(t.get("Total Time", 0)),
-            loved=bool(t.get("Loved", False)),
-            year=t.get("Year"),
+            name=raw.get("Name", ""),
+            artist=raw.get("Artist", ""),
+            album=raw.get("Album", ""),
+            album_artist=raw.get("Album Artist", raw.get("Artist", "")),
+            duration_ms=int(raw.get("Total Time", 0)),
+            loved=bool(raw.get("Loved", False)),
+            year=raw.get("Year"),
         )
 
     playlists: list[ApplePlaylist] = []
@@ -210,25 +213,27 @@ def clean_artist(s: str) -> str:
     return re.split(r"\s*[,&/]\s*|\s+x\s+", s)[0].strip() or s
 
 
-def score_candidate(a: AppleTrack, t: tidalapi.Track) -> float:
-    title_s = fuzz.token_set_ratio(norm(clean_title(a.name)), norm(clean_title(t.name)))
-    t_artists = " ".join(x.name for x in (t.artists or [t.artist]) if x)
+def score_candidate(a: AppleTrack, cand: tidalapi.Track) -> float:
+    title_s = fuzz.token_set_ratio(norm(clean_title(a.name)), norm(clean_title(cand.name)))
+    cand_artists = " ".join(x.name for x in (cand.artists or [cand.artist]) if x)
     artist_s = max(
-        fuzz.token_set_ratio(norm(a.artist), norm(t_artists)),
-        fuzz.token_set_ratio(norm(clean_artist(a.artist)), norm(clean_artist(t.artist.name if t.artist else ""))),
+        fuzz.token_set_ratio(norm(a.artist), norm(cand_artists)),
+        fuzz.token_set_ratio(norm(clean_artist(a.artist)),
+                             norm(clean_artist(cand.artist.name if cand.artist else ""))),
     )
-    album_s = fuzz.token_set_ratio(norm(clean_title(a.album)), norm(clean_title(t.album.name if t.album else "")))
+    album_s = fuzz.token_set_ratio(norm(clean_title(a.album)),
+                                   norm(clean_title(cand.album.name if cand.album else "")))
 
     score = 0.55 * title_s + 0.35 * artist_s + 0.10 * album_s
     # Pénalité durée : > 5 s d'écart pénalise, > 20 s disqualifie quasi
-    if a.duration_ms and t.duration:
-        diff = abs(a.duration_ms / 1000 - t.duration)
+    if a.duration_ms and cand.duration:
+        diff = abs(a.duration_ms / 1000 - cand.duration)
         if diff > 20:
             score -= 25
         elif diff > 5:
             score -= 8
     # Bonus si titre exact
-    if norm(a.name) == norm(t.name):
+    if norm(a.name) == norm(cand.name):
         score += 3
     return score
 
@@ -254,8 +259,9 @@ class Tidal:
         STATE_DIR.mkdir(exist_ok=True)
         ok = self.session.login_session_file(SESSION_FILE)
         if not ok or not self.session.check_login():
-            sys.exit("Connexion TIDAL échouée.")
-        print(f"[TIDAL] connecté : {self.session.user.username if hasattr(self.session.user, 'username') else self.session.user.id}")
+            sys.exit(t("tidal.login_failed"))
+        user = self.session.user
+        print(t("tidal.connected", user=user.username if hasattr(user, "username") else user.id))
 
     # -- retry générique sur 429 / erreurs réseau, sûr en multi-thread
     def _call(self, fn, *a, retries: int = 5, **kw):
@@ -276,7 +282,7 @@ class Tidal:
                     with self._lock:
                         if self._pause_until - time.monotonic() < wait:
                             self._pause_until = time.monotonic() + wait
-                            print(f"  [rate-limit] pause {wait}s")
+                            print(t("net.rate_limit_pause", seconds=wait))
                     continue
                 if i == retries - 1:
                     raise
@@ -287,7 +293,7 @@ class Tidal:
         try:
             res = self._call(self.session.search, query, models=[tidalapi.Track], limit=limit)
         except Exception as e:  # noqa: BLE001
-            print(f"  [search err] {query!r}: {e}")
+            print(t("search.error", query=query, error=e))
             return []
         return list(res.get("tracks", [])) if isinstance(res, dict) else list(getattr(res, "tracks", []))
 
@@ -295,13 +301,14 @@ class Tidal:
         # 1) ISRC : exact
         if a.isrc:
             try:
-                cands = [t for t in self._call(self.session.get_tracks_by_isrc, a.isrc) if t.available]
+                cands = [c for c in self._call(self.session.get_tracks_by_isrc, a.isrc)
+                         if c.available]
             except Exception:  # noqa: BLE001
                 cands = []
             if cands:
-                t = max(cands, key=lambda x: (score_candidate(a, x), x.popularity or 0))
-                return Match(t.id, 100.0, t.name, t.artist.name if t.artist else "",
-                             t.album.id if t.album else None)
+                cand = max(cands, key=lambda x: (score_candidate(a, x), x.popularity or 0))
+                return Match(cand.id, 100.0, cand.name, cand.artist.name if cand.artist else "",
+                             cand.album.id if cand.album else None)
         # 2) recherche fuzzy
         queries = [
             f"{clean_artist(a.artist)} {clean_title(a.name)}",
@@ -312,19 +319,19 @@ class Tidal:
         seen: set[int] = set()
         best: tuple[float, tidalapi.Track] | None = None
         for q in dict.fromkeys(q.strip() for q in queries if q.strip()):
-            for t in self.search_tracks(q):
-                if t.id in seen or not t.available:
+            for cand in self.search_tracks(q):
+                if cand.id in seen or not cand.available:
                     continue
-                seen.add(t.id)
-                s = score_candidate(a, t)
+                seen.add(cand.id)
+                s = score_candidate(a, cand)
                 if best is None or s > best[0]:
-                    best = (s, t)
+                    best = (s, cand)
             if best and best[0] >= 92:  # assez bon, inutile de continuer
                 break
         if best and best[0] >= threshold:
-            s, t = best
-            return Match(t.id, round(s, 1), t.name, t.artist.name if t.artist else "",
-                         t.album.id if t.album else None)
+            s, cand = best
+            return Match(cand.id, round(s, 1), cand.name, cand.artist.name if cand.artist else "",
+                         cand.album.id if cand.album else None)
         return Match(None, round(best[0], 1) if best else 0.0)
 
     def _call_ok(self, fn, *a, **kw) -> bool:
@@ -332,7 +339,7 @@ class Tidal:
         renvoie booléen sur delete/remove au lieu de lever une exception)."""
         r = self._call(fn, *a, **kw)
         if r is False:
-            raise RuntimeError("l'API TIDAL a refusé l'opération (retour False)")
+            raise RuntimeError(t("tidal.api_refused"))
         return True
 
     def _parallel(self, fn, items: list, workers: int, label: str) -> int:
@@ -347,9 +354,9 @@ class Tidal:
                     f.result()
                     done += 1
                 except Exception as e:  # noqa: BLE001
-                    print(f"  [err] {label} {futs[f]}: {e}")
-                print(f"  {label} : {done}/{len(items)}", end="\r")
-        print(f"  [ok] {label} : {done}/{len(items)}      ")
+                    print(t("parallel.item_error", label=label, item=futs[f], error=e))
+                print(t("parallel.progress", label=label, done=done, total=len(items)), end="\r")
+        print(t("parallel.done", label=label, done=done, total=len(items)))
         return done
 
     # -- lecture complète (pagination)
@@ -416,7 +423,7 @@ class Tidal:
                        if p["own"] and (only_names is None or p["name"] in only_names)]
             for p in targets:
                 if self.dry:
-                    print(f"  [dry] supprimerait la playlist « {p['name']} » ({p['num_tracks']} titres)")
+                    print(t("wipe.dry_playlist", name=p["name"], n=p["num_tracks"]))
                     continue
                 obj = getattr(self, "_pl_objects", {}).get(p["id"])
                 if obj is None or not isinstance(obj, tidalapi.playlist.UserPlaylist):
@@ -424,43 +431,44 @@ class Tidal:
                     try:
                         obj = self._call(self.session.playlist, p["id"])
                     except Exception as e:  # noqa: BLE001
-                        print(f"  [err] « {p['name']} » introuvable : {e}")
+                        print(t("wipe.playlist_not_found", name=p["name"], error=e))
                         continue
                 if not isinstance(obj, tidalapi.playlist.UserPlaylist):
-                    print(f"  [skip] « {p['name']} » n'est pas une playlist que tu possèdes")
+                    print(t("wipe.not_owned", name=p["name"]))
                     continue
                 try:
                     self._call_ok(obj.delete)
-                    print(f"  [del] playlist « {p['name']} »")
+                    print(t("wipe.deleted_playlist", name=p["name"]))
                 except Exception as e:  # noqa: BLE001
-                    print(f"  [err] playlist « {p['name']} » : {e}")
+                    print(t("wipe.playlist_error", name=p["name"], error=e))
             # (les playlists sont peu nombreuses : suppression en série, plus lisible)
 
         fav = self.session.user.favorites
         if favorites:
             ids = [t["id"] for t in snap["favorite_tracks"]]
             if self.dry:
-                print(f"  [dry] retirerait {len(ids)} titres des favoris")
+                print(t("wipe.dry_favorites", n=len(ids)))
             else:
-                self._parallel(fav.remove_track, ids, self.workers, "favoris retirés")
+                self._parallel(fav.remove_track, ids, self.workers, t("label.favorites_removed"))
         if albums:
             ids = [a["id"] for a in snap["favorite_albums"]]
             if self.dry:
-                print(f"  [dry] retirerait {len(ids)} albums des favoris")
+                print(t("wipe.dry_albums", n=len(ids)))
             else:
-                self._parallel(fav.remove_album, ids, self.workers, "albums retirés")
+                self._parallel(fav.remove_album, ids, self.workers, t("label.albums_removed"))
         if artists:
             ids = [a["id"] for a in snap.get("favorite_artists", [])]
             if self.dry:
-                print(f"  [dry] retirerait {len(ids)} artistes des favoris")
+                print(t("wipe.dry_artists", n=len(ids)))
             else:
-                self._parallel(fav.remove_artist, ids, self.workers, "artistes retirés")
+                self._parallel(fav.remove_artist, ids, self.workers, t("label.artists_removed"))
         if followed:
             ids = [p["id"] for p in snap.get("followed_playlists", [])]
             if self.dry:
-                print(f"  [dry] arrêterait de suivre {len(ids)} playlist(s)")
+                print(t("wipe.dry_followed", n=len(ids)))
             else:
-                self._parallel(fav.remove_playlist, ids, self.workers, "playlists non suivies")
+                self._parallel(fav.remove_playlist, ids, self.workers,
+                               t("label.playlists_unfollowed"))
 
     def verify_wipe(self, snap: dict, playlists: bool, favorites: bool, albums: bool,
                     only_names: set[str] | None = None) -> bool:
@@ -476,20 +484,19 @@ class Tidal:
                     if p.name in expected]
             if left:
                 ok = False
-                print(f"  [!] {len(left)} playlist(s) toujours présentes : {', '.join(left[:5])}"
+                print(t("verify.playlists_left", n=len(left), names=", ".join(left[:5]))
                       + (" …" if len(left) > 5 else ""))
         if favorites:
             n = len(self._paginate(fav.tracks))
             if n:
                 ok = False
-                print(f"  [!] {n} titres encore en favoris")
+                print(t("verify.tracks_left", n=n))
         if albums:
             n = len(self._paginate(fav.albums))
             if n:
                 ok = False
-                print(f"  [!] {n} albums encore en favoris")
-        print("  [vérif] compte bien vidé" if ok else
-              "  [vérif] la suppression a échoué (voir ci-dessus) — rien ne sera importé par-dessus")
+                print(t("verify.albums_left", n=n))
+        print(t("verify.ok") if ok else t("verify.failed"))
         return ok
 
     # -- écritures
@@ -499,11 +506,11 @@ class Tidal:
     def create_playlist(self, name: str, desc: str, track_ids: list[int],
                         existing: dict, overwrite: bool):
         if self.dry:
-            print(f"  [dry] playlist « {name} » : {len(track_ids)} titres")
+            print(t("playlist.dry", name=name, n=len(track_ids)))
             return
         pl = existing.get(name)
         if pl and not overwrite:
-            print(f"  [skip] « {name} » existe déjà (--overwrite pour la vider et recréer)")
+            print(t("playlist.exists", name=name))
             return
         if pl and overwrite:
             self._call(pl.clear)
@@ -514,11 +521,11 @@ class Tidal:
             chunk = [str(x) for x in track_ids[i:i + 100]]
             self._call(pl.add, chunk, allow_duplicates=True)
             added += len(chunk)
-        print(f"  [ok] « {name} » : {added} titres")
+        print(t("playlist.created", name=name, n=added))
 
     def favorite_tracks(self, ids: list[int], skip_existing: bool = True):
         if self.dry:
-            print(f"  [dry] {len(ids)} titres → favoris")
+            print(t("favorites.dry_tracks", n=len(ids)))
             return
         fav = self.session.user.favorites
         if skip_existing:
@@ -527,11 +534,11 @@ class Tidal:
                 before = len(ids)
                 ids = [x for x in ids if x not in have]
                 if before - len(ids):
-                    print(f"  {before - len(ids)} déjà en favoris, ignorés")
+                    print(t("favorites.already", n=before - len(ids)))
             except Exception:  # noqa: BLE001
                 pass
         if not ids:
-            print("  [ok] rien à ajouter")
+            print(t("favorites.nothing"))
             return
         done = 0
         for i in range(0, len(ids), 50):
@@ -540,13 +547,14 @@ class Tidal:
                 self._call(fav.add_track, chunk)
                 done += len(chunk)
             except Exception:  # fallback un par un, en parallèle
-                done += self._parallel(fav.add_track, chunk, self.workers, "favoris (unitaire)")
-            print(f"  favoris : {done}/{len(ids)}", end="\r")
-        print(f"  [ok] {done} titres ajoutés aux favoris")
+                done += self._parallel(fav.add_track, chunk, self.workers,
+                                       t("label.favorites_one_by_one"))
+            print(t("favorites.progress", done=done, total=len(ids)), end="\r")
+        print(t("favorites.added", n=done))
 
     def favorite_albums(self, ids: list[int], skip_existing: bool = True):
         if self.dry:
-            print(f"  [dry] {len(ids)} albums → favoris")
+            print(t("favorites.dry_albums", n=len(ids)))
             return
         fav = self.session.user.favorites
         if skip_existing:
@@ -555,7 +563,7 @@ class Tidal:
                 ids = [x for x in ids if x not in have]
             except Exception:  # noqa: BLE001
                 pass
-        self._parallel(fav.add_album, ids, self.workers, "albums ajoutés")
+        self._parallel(fav.add_album, ids, self.workers, t("label.albums_added"))
 
 
 # --------------------------------------------------------------------------- #
@@ -568,7 +576,7 @@ def load_cache() -> dict[str, dict]:
         txt = CACHE_FILE.read_text(encoding="utf-8").strip()
         return json.loads(txt) if txt else {}
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        print(f"[cache] {CACHE_FILE} illisible ({e}), on repart de zéro")
+        print(t("cache.unreadable", path=CACHE_FILE, error=e))
         return {}
 
 
@@ -582,7 +590,7 @@ def migrate_cache(cache: dict, tracks: dict) -> dict:
         if a:
             out.setdefault(dedup_key(a), m)
             n += 1
-    print(f"[cache] {n} entrées migrées vers le nouveau format ({len(out)} uniques)")
+    print(t("cache.migrated", n=n, unique=len(out)))
     return out
 
 
@@ -596,6 +604,12 @@ def save_cache(cache: dict):
 # --------------------------------------------------------------------------- #
 #  Main
 # --------------------------------------------------------------------------- #
+def confirmed() -> bool:
+    """Demande le mot de confirmation, dans la langue courante (DELETE / SUPPRIMER)."""
+    word = t("confirm.word")
+    return input(t("confirm.prompt", word=word)).strip() == word
+
+
 def main():
     # Windows : console/fichiers en UTF-8, et on coupe le bruit "Track 'x' is unavailable" de tidalapi
     for stream in (sys.stdout, sys.stderr):
@@ -603,77 +617,74 @@ def main():
             stream.reconfigure(encoding="utf-8", errors="replace")
     logging.getLogger("tidalapi").setLevel(logging.ERROR)
 
-    ap = argparse.ArgumentParser(description="Apple Music → TIDAL")
-    ap.add_argument("library", type=Path, nargs="?",
-                    help="Export .xml (app Musique) ou .json (export_apple_music.js). "
-                         "Inutile avec --wipe.")
-    ap.add_argument("--playlists", action="store_true", help="Recréer les playlists")
-    ap.add_argument("--favorites", action="store_true", help="Toute la bibliothèque → titres favoris TIDAL")
-    ap.add_argument("--loved", action="store_true", help="Seulement les titres 'aimés' → favoris")
-    ap.add_argument("--albums", action="store_true", help="Albums complets (≥80%% des titres) → albums favoris")
-    ap.add_argument("--all", action="store_true", help="= --playlists --favorites --albums")
-    ap.add_argument("--only", action="append", default=[], help="Nom(s) de playlist à traiter uniquement")
-    ap.add_argument("--skip-smart", action="store_true", help="Ignorer les playlists intelligentes")
-    ap.add_argument("--overwrite", action="store_true", help="Vider et recréer les playlists existantes")
-    ap.add_argument("--wipe", action="store_true",
-                    help="DESTRUCTIF : vide entièrement le compte TIDAL et s'arrête (aucun import)")
-    ap.add_argument("--keep-followed", action="store_true",
-                    help="Avec --wipe : garder les playlists d'autres utilisateurs que tu suis")
-    ap.add_argument("--reset", action="store_true",
-                    help="DESTRUCTIF : vide le compte TIDAL (playlists créées par toi + favoris) avant l'import")
+    # --lang est lu avant argparse : les textes d'aide doivent déjà être traduits
+    # quand on les déclare. argparse revalide ensuite la valeur via `choices`.
+    lang = set_lang(resolve_lang())
+
+    ap = argparse.ArgumentParser(description=t("cli.description"))
+    ap.add_argument("library", type=Path, nargs="?", help=t("cli.help.library"))
+    ap.add_argument("--playlists", action="store_true", help=t("cli.help.playlists"))
+    ap.add_argument("--favorites", action="store_true", help=t("cli.help.favorites"))
+    ap.add_argument("--loved", action="store_true", help=t("cli.help.loved"))
+    ap.add_argument("--albums", action="store_true", help=t("cli.help.albums"))
+    ap.add_argument("--all", action="store_true", help=t("cli.help.all"))
+    ap.add_argument("--only", action="append", default=[], help=t("cli.help.only"))
+    ap.add_argument("--skip-smart", action="store_true", help=t("cli.help.skip_smart"))
+    ap.add_argument("--overwrite", action="store_true", help=t("cli.help.overwrite"))
+    ap.add_argument("--wipe", action="store_true", help=t("cli.help.wipe"))
+    ap.add_argument("--keep-followed", action="store_true", help=t("cli.help.keep_followed"))
+    ap.add_argument("--reset", action="store_true", help=t("cli.help.reset"))
     ap.add_argument("--reset-scope", default="imported", choices=["imported", "all"],
-                    help="imported (défaut) = ne supprime que les playlists portant le nom d'une playlist Apple ; "
-                         "all = supprime toutes tes playlists")
-    ap.add_argument("--yes", action="store_true", help="Ne pas demander confirmation pour --reset")
+                    help=t("cli.help.reset_scope"))
+    ap.add_argument("--yes", action="store_true", help=t("cli.help.yes"))
     ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
-                    help=f"Score min de matching (0-100), défaut {DEFAULT_THRESHOLD:.0f}")
-    ap.add_argument("--rematch", action="store_true", help="Ignorer le cache et rechercher à nouveau les non-trouvés")
-    ap.add_argument("--dry-run", action="store_true", help="Ne rien écrire sur TIDAL")
-    ap.add_argument("--delay", type=float, default=0.0, help="Pause entre requêtes (s), 0 par défaut")
-    ap.add_argument("--workers", type=int, default=8,
-                    help="Requêtes TIDAL en parallèle (défaut 8 ; baisser si rate-limit)")
+                    help=t("cli.help.threshold", default=DEFAULT_THRESHOLD))
+    ap.add_argument("--rematch", action="store_true", help=t("cli.help.rematch"))
+    ap.add_argument("--dry-run", action="store_true", help=t("cli.help.dry_run"))
+    ap.add_argument("--delay", type=float, default=0.0, help=t("cli.help.delay"))
+    ap.add_argument("--workers", type=int, default=8, help=t("cli.help.workers"))
+    ap.add_argument("--lang", default=lang, choices=sorted(LANGUAGES),
+                    help=t("cli.help.lang"))
     args = ap.parse_args()
 
     if args.wipe and (args.all or args.playlists or args.favorites or args.loved
                       or args.albums or args.reset):
-        ap.error("--wipe supprime et s'arrête : ne le combine pas avec une action d'import "
-                 "(utilise --reset pour vider puis réimporter)")
+        ap.error(t("cli.error.wipe_with_import"))
     if not args.wipe and args.library is None:
-        ap.error("chemin de l'export manquant")
+        ap.error(t("cli.error.library_missing"))
     if args.all:
         args.playlists = args.favorites = args.albums = True
     if args.reset and not (args.playlists or args.favorites or args.loved or args.albums):
-        ap.error("--reset s'utilise avec l'action d'import correspondante (ex : --reset --all)")
+        ap.error(t("cli.error.reset_needs_action"))
     if not (args.wipe or args.playlists or args.favorites or args.loved
             or args.albums or args.dry_run):
-        ap.error("Précise au moins une action : --playlists / --favorites / --loved / "
-                 "--albums / --all / --wipe")
+        ap.error(t("cli.error.no_action"))
 
     # ---- Mode --wipe : vider le compte, puis s'arrêter
     if args.wipe:
         tidal = Tidal(dry_run=args.dry_run, delay=args.delay, workers=args.workers)
         if args.dry_run:
-            print("\n[TIDAL] --dry-run actif : SIMULATION, rien ne sera supprimé.")
-        print("[TIDAL] lecture de l'état du compte…")
+            print("\n" + t("main.dry_run_notice"))
+        print(t("main.reading_account"))
         snap = tidal.snapshot(workers=args.workers)
         own = [p for p in snap["playlists"] if p["own"]]
         foll = snap.get("followed_playlists", [])
-        print(f"  sauvegarde écrite dans {snap['path']}")
-        print(f"  à supprimer : {len(own)} playlist(s), "
-              f"{len(snap['favorite_tracks'])} titres favoris, "
-              f"{len(snap['favorite_albums'])} albums favoris, "
-              f"{len(snap.get('favorite_artists', []))} artistes favoris"
-              + ("" if args.keep_followed else f", {len(foll)} playlist(s) suivies"))
+        print(t("main.backup_written", path=snap["path"]))
+        print(t("wipe.summary", playlists=len(own),
+                tracks=len(snap["favorite_tracks"]),
+                albums=len(snap["favorite_albums"]),
+                artists=len(snap.get("favorite_artists", [])))
+              + ("" if args.keep_followed else t("wipe.summary_followed", n=len(foll))))
         for p in own:
-            print(f"    - {p['name']} ({p['num_tracks']})")
+            print(t("main.playlist_line", name=p["name"], n=p["num_tracks"]))
         if not args.dry_run and not args.yes:
-            print("\n  Le compte sera vidé et RIEN ne sera réimporté. C'est IRRÉVERSIBLE.")
-            if input("  Tape SUPPRIMER pour confirmer : ").strip() != "SUPPRIMER":
-                sys.exit("  Annulé, rien n'a été touché.")
+            print("\n" + t("confirm.wipe_warning"))
+            if not confirmed():
+                sys.exit(t("confirm.cancelled"))
         tidal.wipe(snap, playlists=True, favorites=True, albums=True, only_names=None,
                    artists=True, followed=not args.keep_followed)
         ok = tidal.verify_wipe(snap, playlists=True, favorites=True, albums=True)
-        print("\nTerminé." if ok else "\nTerminé avec des erreurs (voir ci-dessus).")
+        print("\n" + (t("main.done") if ok else t("main.done_with_errors")))
         return
 
     tracks, playlists = parse_library(args.library)
@@ -683,9 +694,10 @@ def main():
     if args.only:
         wanted = {n.lower() for n in args.only}
         playlists = [p for p in playlists if p.name.lower() in wanted]
-    print(f"[Apple] {len(tracks)} titres ({n_isrc} avec ISRC), {len(playlists)} playlists")
+    print(t("apple.summary", tracks=len(tracks), isrc=n_isrc, playlists=len(playlists)))
     for p in playlists:
-        print(f"   - {p.name} ({len(p.track_ids)}){' [smart]' if p.smart else ''}")
+        print(t("apple.playlist_line", name=p.name, n=len(p.track_ids),
+                smart=t("apple.smart_tag") if p.smart else ""))
 
     # Quels titres faut-il matcher ?
     needed: set[str] = set()
@@ -704,29 +716,29 @@ def main():
     # ---- Reset du compte TIDAL (avant tout import)
     if args.reset:
         if args.dry_run:
-            print("\n[TIDAL] --dry-run actif : SIMULATION, rien ne sera supprimé.")
-        print("\n[TIDAL] état actuel du compte…")
+            print("\n" + t("main.dry_run_notice"))
+        print("\n" + t("main.current_account"))
         snap = tidal.snapshot(workers=args.workers)
         own = [p for p in snap["playlists"] if p["own"]]
         only = {p.name for p in playlists} if args.reset_scope == "imported" else None
         to_del = [p for p in own if only is None or p["name"] in only]
         n_fav = len(snap["favorite_tracks"]) if (args.favorites or args.loved) else 0
         n_alb = len(snap["favorite_albums"]) if args.albums else 0
-        print(f"  sauvegarde écrite dans {snap['path']}")
-        print(f"  à supprimer : {len(to_del)} playlist(s) sur {len(own)}, "
-              f"{n_fav} titres favoris, {n_alb} albums favoris")
+        print(t("main.backup_written", path=snap["path"]))
+        print(t("reset.summary", to_delete=len(to_del), own=len(own),
+                tracks=n_fav, albums=n_alb))
         for p in to_del:
-            print(f"    - {p['name']} ({p['num_tracks']})")
+            print(t("main.playlist_line", name=p["name"], n=p["num_tracks"]))
         if not args.dry_run and not args.yes:
-            print("\n  C'est IRRÉVERSIBLE. TIDAL ne propose pas de corbeille.")
-            if input("  Tape SUPPRIMER pour confirmer : ").strip() != "SUPPRIMER":
-                sys.exit("  Annulé, rien n'a été touché.")
+            print("\n" + t("confirm.reset_warning"))
+            if not confirmed():
+                sys.exit(t("confirm.cancelled"))
         tidal.wipe(snap, playlists=args.playlists, favorites=(args.favorites or args.loved),
                    albums=args.albums, only_names=only)
         if not tidal.verify_wipe(snap, playlists=args.playlists,
                                  favorites=(args.favorites or args.loved),
                                  albums=args.albums, only_names=only):
-            sys.exit("Import annulé : le compte n'a pas été vidé comme demandé.")
+            sys.exit(t("main.import_cancelled"))
 
     cache = migrate_cache(load_cache(), tracks)
 
@@ -736,8 +748,8 @@ def main():
         groups.setdefault(dedup_key(tracks[tid]), tracks[tid])
     todo = [k for k in groups
             if k not in cache or (args.rematch and cache[k].get("tidal_id") is None)]
-    print(f"[match] {len(needed)} titres → {len(groups)} distincts, "
-          f"{len(todo)} à rechercher (cache : {len(groups) - len(todo)})")
+    print(t("match.plan", needed=len(needed), groups=len(groups), todo=len(todo),
+            cached=len(groups) - len(todo)))
 
     t0 = time.time()
     lock = threading.Lock()
@@ -751,8 +763,10 @@ def main():
             counter[0] += 1
             i = counter[0]
             flag = "✓" if m.tidal_id else "✗"
-            print(f"  {i}/{len(todo)} {flag} {a.artist} — {a.name}  ({m.score})"
-                  + (f"  → {m.tidal_artist} — {m.tidal_title}" if m.tidal_id else ""))
+            print(t("match.line", i=i, total=len(todo), flag=flag,
+                    artist=a.artist, name=a.name, score=m.score)
+                  + (t("match.line_target", tidal_artist=m.tidal_artist,
+                       tidal_title=m.tidal_title) if m.tidal_id else ""))
             if i % 50 == 0:
                 save_cache(cache)
 
@@ -762,77 +776,80 @@ def main():
                 try:
                     f.result()
                 except Exception as e:  # noqa: BLE001
-                    print(f"  [err] {e}")
+                    print(t("match.error", error=e))
     save_cache(cache)
     if todo:
         rate = len(todo) / max(time.time() - t0, 0.001)
-        print(f"[match] terminé en {time.time() - t0:.0f}s ({rate:.1f} titres/s)")
+        print(t("match.finished", seconds=time.time() - t0, rate=rate))
 
     def tidal_id(apple_id: str) -> int | None:
         return cache.get(dedup_key(tracks[apple_id]), {}).get("tidal_id")
 
     # Rapport des non-trouvés
-    unmatched = [tracks[t] for t in needed if not tidal_id(t)]
+    unmatched = [tracks[tid] for tid in needed if not tidal_id(tid)]
     with open(REPORT_FILE, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["artist", "title", "album", "best_score", "playlists"])
         pl_of = defaultdict(list)
         for p in playlists:
-            for t in p.track_ids:
-                pl_of[t].append(p.name)
+            for tid in p.track_ids:
+                pl_of[tid].append(p.name)
         for a in sorted(unmatched, key=lambda x: (x.artist.lower(), x.name.lower())):
             w.writerow([a.artist, a.name, a.album,
                         cache.get(dedup_key(a), {}).get("score", 0),
                         "; ".join(pl_of.get(a.id, []))])
-    print(f"[match] {len(needed) - len(unmatched)}/{len(needed)} trouvés — non trouvés listés dans {REPORT_FILE}")
+    print(t("match.report", found=len(needed) - len(unmatched), total=len(needed),
+            path=REPORT_FILE))
 
     # ---- Playlists
     if args.playlists:
-        print("\n[TIDAL] playlists")
+        print("\n" + t("section.playlists"))
         existing = {} if args.dry_run else tidal.existing_playlists()
         for p in playlists:
             ids, seen = [], set()
-            for t in p.track_ids:
-                x = tidal_id(t)
+            for tid in p.track_ids:
+                x = tidal_id(tid)
                 if x and x not in seen:
                     ids.append(x)
                     seen.add(x)
             if not ids:
-                print(f"  [skip] « {p.name} » : aucun titre trouvé")
+                print(t("playlist.no_match", name=p.name))
                 continue
             miss = len(p.track_ids) - len(ids)
-            desc = "Importée d'Apple Music" + (f" ({miss} titres non trouvés)" if miss else "")
+            desc = t("playlist.description") + (t("playlist.description_missing", n=miss)
+                                                if miss else "")
             tidal.create_playlist(p.name, desc, ids, existing, args.overwrite)
 
     # ---- Favoris
     if args.favorites or args.loved:
-        print("\n[TIDAL] favoris")
-        src = tracks.values() if args.favorites else (t for t in tracks.values() if t.loved)
-        ids = list(dict.fromkeys(x for x in (tidal_id(t.id) for t in src) if x))
+        print("\n" + t("section.favorites"))
+        src = tracks.values() if args.favorites else (a for a in tracks.values() if a.loved)
+        ids = list(dict.fromkeys(x for x in (tidal_id(a.id) for a in src) if x))
         tidal.favorite_tracks(ids)
 
     # ---- Albums
     if args.albums:
-        print("\n[TIDAL] albums")
+        print("\n" + t("section.albums"))
         by_album: dict[tuple[str, str], list[AppleTrack]] = defaultdict(list)
-        for t in tracks.values():
-            if t.album:
-                by_album[(norm(t.album_artist), norm(t.album))].append(t)
+        for a in tracks.values():
+            if a.album:
+                by_album[(norm(a.album_artist), norm(a.album))].append(a)
         album_ids: list[int] = []
         for (_, _), ts in by_album.items():
             if len(ts) < 3:
                 continue  # singles / EP partiels : on laisse
-            tidal_albums = [cache.get(dedup_key(t), {}).get("album_id") for t in ts if tidal_id(t.id)]
+            tidal_albums = [cache.get(dedup_key(a), {}).get("album_id")
+                            for a in ts if tidal_id(a.id)]
             tidal_albums = [x for x in tidal_albums if x]
             if len(tidal_albums) / len(ts) >= 0.8:
                 # album TIDAL majoritaire parmi les matchs
                 top = max(set(tidal_albums), key=tidal_albums.count)
                 if top not in album_ids:
                     album_ids.append(top)
-        print(f"  {len(album_ids)} albums complets détectés")
+        print(t("albums.detected", n=len(album_ids)))
         tidal.favorite_albums(album_ids)
 
-    print("\nTerminé.")
+    print("\n" + t("main.done"))
 
 
 if __name__ == "__main__":

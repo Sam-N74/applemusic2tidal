@@ -40,6 +40,11 @@ against something you can afford to lose.
 - Any destructive operation writes a JSON backup, asks for confirmation, then
   verifies the deletion actually happened.
 - `README.md` and `README.fr.md` stay in sync; a change to one requires the other.
+- No user-facing string is written inline. It goes in `apple2tidal/messages.py`, in **both**
+  `EN` and `FR`, and is printed through `t("key", **params)`. A key present in
+  one dictionary and not the other, a placeholder lost in translation or a key
+  nothing uses any more are all bugs. English is the default; `--lang fr` (or
+  `APPLE2TIDAL_LANG=fr`) switches.
 - Never commit `.apple2tidal/`, `apple_library.json`, `*.xml` or `backup_*.json`.
   They hold OAuth tokens and a full listening history. `.gitignore` covers them —
   re-check it after any directory move.
