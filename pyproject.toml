@@ -18,7 +18,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["apple2tidal"]
+py-modules = ["apple2tidal", "messages"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

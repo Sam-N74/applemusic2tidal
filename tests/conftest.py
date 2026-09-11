@@ -5,6 +5,14 @@ from types import SimpleNamespace
 import pytest
 
 import apple2tidal as a2t
+import messages
+
+
+@pytest.fixture(autouse=True)
+def default_language(monkeypatch):
+    """La suite verifie la sortie anglaise : APPLE2TIDAL_LANG ne doit pas la deplacer."""
+    monkeypatch.delenv(messages.ENV_VAR, raising=False)
+    monkeypatch.setattr(messages, "_current", messages.DEFAULT_LANG)
 
 
 def track(name="Song", artist="Artist", album="Album", album_artist=None,

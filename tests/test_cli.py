@@ -22,12 +22,12 @@ def test_help_exits_cleanly(monkeypatch):
 
 def test_action_is_required(monkeypatch, capsys):
     assert run(monkeypatch, "library.json") == 2
-    assert "au moins une action" in capsys.readouterr().err
+    assert "at least one action" in capsys.readouterr().err
 
 
 def test_library_path_required_without_wipe(monkeypatch, capsys):
     assert run(monkeypatch, "--playlists") == 2
-    assert "export manquant" in capsys.readouterr().err
+    assert "missing export path" in capsys.readouterr().err
 
 
 def test_wipe_refuses_to_be_combined_with_an_import(monkeypatch, capsys):

@@ -55,6 +55,7 @@ Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : il suffit de l'
 | `--reset` | **Destructif** : vide le compte TIDAL avant l'import (voir ci-dessous) |
 | `--reset-scope all` | `--reset` supprime *toutes* les playlists, pas seulement les homonymes Apple |
 | `--yes` | Saute la confirmation de `--reset` |
+| `--lang fr` | Langue de la sortie : `en` (défaut) ou `fr`. Lue aussi depuis la variable d'environnement `APPLE2TIDAL_LANG`. Le mot de confirmation des suppressions suit la langue : `DELETE` en anglais, `SUPPRIMER` en français |
 
 ## Vider le compte TIDAL sans rien réimporter (`--wipe`)
 

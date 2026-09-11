@@ -40,6 +40,7 @@ first.
 | `test_cache.py` | reading a corrupted cache, atomic writes, migration to the identity-keyed format |
 | `test_destructive.py` | delete scope, retries, `verify_wipe` |
 | `test_cli.py` | argument combinations that must be refused |
+| `test_messages.py` | EN/FR parity, language resolution, the confirmation word |
 
 No test may reach the network or a real TIDAL account. `tests/conftest.py`
 provides the doubles; anything talking to TIDAL is a `MagicMock`.
@@ -52,6 +53,11 @@ When a bug is reported, the first commit adds a failing test that reproduces it.
 - Any destructive operation writes a JSON backup, asks for confirmation, then
   verifies the deletion actually happened.
 - `README.md` and `README.fr.md` stay in sync; a change to one requires the other.
+- No user-facing string is written inline. It goes in `messages.py`, in **both**
+  `EN` and `FR`, and is printed through `t("key", **params)`. `test_messages.py`
+  fails on a key present in one dictionary and not the other, on a placeholder
+  lost in translation, and on a key nothing uses any more. English is the
+  default; `--lang fr` (or `APPLE2TIDAL_LANG=fr`) switches.
 - Never commit `.apple2tidal/`, `apple_library.json`, `*.xml` or `backup_*.json`.
   They hold OAuth tokens and a full listening history. `.gitignore` covers them —
   re-check it after any directory move.
