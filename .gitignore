@@ -7,7 +7,7 @@ backup_*.json
 
 # Exports Apple Music (toute ta bibliothèque, playlists, ISRC)
 apple_library.json
-*.xml
+/*.xml
 Bibliothèque.xml
 Library.xml
 
