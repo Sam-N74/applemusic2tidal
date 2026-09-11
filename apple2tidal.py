@@ -21,19 +21,17 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import plistlib
 import re
 import sys
-import time
 import threading
+import time
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
-
-import logging
 
 try:
     import tidalapi
@@ -66,6 +64,9 @@ SESSION_FILE = STATE_DIR / "tidal_session.json"
 CACHE_FILE = STATE_DIR / "matches.json"
 REPORT_FILE = STATE_DIR / "unmatched.csv"
 
+# Score minimal pour accepter un match fuzzy. En dessous, le titre part dans unmatched.csv.
+DEFAULT_THRESHOLD = 78.0
+
 # Playlists système d'Apple Music à ignorer
 SYSTEM_PLAYLIST_KEYS = {"Master", "Music", "Movies", "TV Shows", "Podcasts", "Audiobooks",
                         "Purchased", "Distinguished Kind", "Folder"}
@@ -83,8 +84,8 @@ class AppleTrack:
     album_artist: str
     duration_ms: int
     loved: bool
-    year: Optional[int] = None
-    isrc: Optional[str] = None
+    year: int | None = None
+    isrc: str | None = None
 
     @property
     def key(self) -> str:
@@ -100,11 +101,11 @@ class ApplePlaylist:
 
 @dataclass
 class Match:
-    tidal_id: Optional[int]
+    tidal_id: int | None
     score: float
     tidal_title: str = ""
     tidal_artist: str = ""
-    album_id: Optional[int] = None
+    album_id: int | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -309,7 +310,7 @@ class Tidal:
             clean_title(a.name),
         ]
         seen: set[int] = set()
-        best: Optional[tuple[float, tidalapi.Track]] = None
+        best: tuple[float, tidalapi.Track] | None = None
         for q in dict.fromkeys(q.strip() for q in queries if q.strip()):
             for t in self.search_tracks(q):
                 if t.id in seen or not t.available:
@@ -407,7 +408,7 @@ class Tidal:
         return {"path": path, **data}
 
     def wipe(self, snap: dict, playlists: bool, favorites: bool, albums: bool,
-             only_names: Optional[set[str]] = None, artists: bool = False,
+             only_names: set[str] | None = None, artists: bool = False,
              followed: bool = False):
         """Supprime playlists / favoris. only_names : ne toucher que ces playlists."""
         if playlists:
@@ -462,7 +463,7 @@ class Tidal:
                 self._parallel(fav.remove_playlist, ids, self.workers, "playlists non suivies")
 
     def verify_wipe(self, snap: dict, playlists: bool, favorites: bool, albums: bool,
-                    only_names: Optional[set[str]] = None) -> bool:
+                    only_names: set[str] | None = None) -> bool:
         """Relit le compte après suppression et signale ce qui reste."""
         if self.dry:
             return True
@@ -624,7 +625,8 @@ def main():
                     help="imported (défaut) = ne supprime que les playlists portant le nom d'une playlist Apple ; "
                          "all = supprime toutes tes playlists")
     ap.add_argument("--yes", action="store_true", help="Ne pas demander confirmation pour --reset")
-    ap.add_argument("--threshold", type=float, default=78.0, help="Score min de matching (0-100), défaut 78")
+    ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
+                    help=f"Score min de matching (0-100), défaut {DEFAULT_THRESHOLD:.0f}")
     ap.add_argument("--rematch", action="store_true", help="Ignorer le cache et rechercher à nouveau les non-trouvés")
     ap.add_argument("--dry-run", action="store_true", help="Ne rien écrire sur TIDAL")
     ap.add_argument("--delay", type=float, default=0.0, help="Pause entre requêtes (s), 0 par défaut")
@@ -766,7 +768,7 @@ def main():
         rate = len(todo) / max(time.time() - t0, 0.001)
         print(f"[match] terminé en {time.time() - t0:.0f}s ({rate:.1f} titres/s)")
 
-    def tidal_id(apple_id: str) -> Optional[int]:
+    def tidal_id(apple_id: str) -> int | None:
         return cache.get(dedup_key(tracks[apple_id]), {}).get("tidal_id")
 
     # Rapport des non-trouvés
@@ -799,7 +801,7 @@ def main():
                 print(f"  [skip] « {p.name} » : aucun titre trouvé")
                 continue
             miss = len(p.track_ids) - len(ids)
-            desc = f"Importée d'Apple Music" + (f" ({miss} titres non trouvés)" if miss else "")
+            desc = "Importée d'Apple Music" + (f" ({miss} titres non trouvés)" if miss else "")
             tidal.create_playlist(p.name, desc, ids, existing, args.overwrite)
 
     # ---- Favoris
