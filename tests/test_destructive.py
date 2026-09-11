@@ -204,7 +204,7 @@ def test_verify_wipe_false_when_playlist_survived(capsys):
     snap = snapshot(playlists=[own_playlist("a", "Importee")])
 
     assert t.verify_wipe(snap, playlists=True, favorites=False, albums=False) is False
-    assert "toujours presentes" in a2t.norm(capsys.readouterr().out)
+    assert "still present" in a2t.norm(capsys.readouterr().out)
 
 
 def test_verify_wipe_false_when_favorites_remain():

@@ -26,7 +26,7 @@ def test_load_cache_survives_corrupted_file(state_dir, capsys):
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "matches.json").write_text('{"a": {"tidal', encoding="utf-8")
     assert a2t.load_cache() == {}
-    assert "illisible" in capsys.readouterr().out
+    assert "unreadable" in capsys.readouterr().out
 
 
 def test_load_cache_empty_file(state_dir):

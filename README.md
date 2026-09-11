@@ -55,6 +55,7 @@ On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the
 | `--reset` | **Destructive**: empties the TIDAL account before importing (see below) |
 | `--reset-scope all` | Makes `--reset` delete *all* playlists, not only those matching an Apple playlist name |
 | `--yes` | Skip the `--reset` confirmation prompt |
+| `--lang fr` | Output language: `en` (default) or `fr`. Also read from the `APPLE2TIDAL_LANG` environment variable. The deletion confirmation word follows the language: `DELETE` in English, `SUPPRIMER` in French |
 
 ## Emptying the TIDAL account without reimporting (`--wipe`)
 
