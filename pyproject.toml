@@ -1,0 +1,40 @@
+[project]
+name = "apple2tidal"
+version = "0.1.0"
+description = "Transfers playlists, library, loved tracks and albums from Apple Music to TIDAL."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = ["tidalapi>=0.8", "rapidfuzz>=3.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+apple2tidal = "apple2tidal:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["apple2tidal"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",   # la longueur des lignes est deja cadree par line-length + format
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
