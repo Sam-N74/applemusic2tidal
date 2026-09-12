@@ -105,6 +105,8 @@ EN: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": '  [dry] playlist "{name}": {n} tracks',
     "playlist.exists": '  [skip] "{name}" already exists (--overwrite to clear and recreate it)',
+    "playlist.ambiguous": '  [skip] {n} TIDAL playlists are named "{name}": nothing was touched, '
+                          "rename or delete one and run again",
     "playlist.created": '  [ok] "{name}": {n} tracks',
     "playlist.no_match": '  [skip] "{name}": no track matched',
     "playlist.description": "Imported from Apple Music",
@@ -246,6 +248,8 @@ FR: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": "  [dry] playlist « {name} » : {n} titres",
     "playlist.exists": "  [skip] « {name} » existe déjà (--overwrite pour la vider et recréer)",
+    "playlist.ambiguous": "  [skip] {n} playlists TIDAL portent le nom « {name} » : rien n'a "
+                          "été touché, renomme ou supprime l'une d'elles puis relance",
     "playlist.created": "  [ok] « {name} » : {n} titres",
     "playlist.no_match": "  [skip] « {name} » : aucun titre trouvé",
     "playlist.description": "Importée d'Apple Music",

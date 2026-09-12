@@ -610,19 +610,31 @@ class Tidal:
         return ok
 
     # -- écritures
-    def existing_playlists(self) -> dict[str, tidalapi.UserPlaylist]:
-        return {p.name: p for p in self._call(self.session.user.playlists)}
+    def existing_playlists(self) -> dict[str, list[tidalapi.UserPlaylist]]:
+        """Playlists du compte, groupees par nom. Une liste et non un objet :
+        TIDAL autorise deux playlists homonymes, et un index par nom en perdait
+        une — celle qu'on vidait ensuite n'etait pas forcement la bonne."""
+        out: dict[str, list] = defaultdict(list)
+        for p in self._call(self.session.user.playlists):
+            out[p.name].append(p)
+        return dict(out)
 
     def create_playlist(self, name: str, desc: str, track_ids: list[int],
                         existing: dict, overwrite: bool):
         if self.dry:
             print(t("playlist.dry", name=name, n=len(track_ids)))
             return
-        pl = existing.get(name)
-        if pl and not overwrite:
+        same_name = existing.get(name) or []
+        if len(same_name) > 1:
+            # on ne peut pas deviner laquelle ecraser : ne rien toucher est la
+            # seule reponse sure.
+            print(t("playlist.ambiguous", n=len(same_name), name=name))
+            return
+        if same_name and not overwrite:
             print(t("playlist.exists", name=name))
             return
-        if pl and overwrite:
+        if same_name and overwrite:
+            pl = same_name[0]
             self._call(pl.clear)
         else:
             pl = self._call(self.session.user.create_playlist, name, desc)
