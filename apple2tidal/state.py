@@ -76,7 +76,20 @@ def save_cache(cache: dict, path: Path) -> None:
     tmp.replace(path)  # atomique : jamais de fichier à moitié écrit
 
 
+# Champs ecrits du temps ou TIDAL etait la seule destination possible.
+LEGACY_MATCH_FIELDS = {"tidal_id": "id", "tidal_title": "title", "tidal_artist": "artist"}
+
+
 def migrate_cache(cache: dict, tracks: dict[str, Track]) -> dict:
+    """Remet un cache ancien au format courant : d'abord la cle, puis les champs.
+
+    Les deux migrations sont independantes et un cache assez vieux demande les
+    deux. Chacune se reconnait a ce qu'elle voit et ne touche rien sinon.
+    """
+    return _rename_fields(_reindex_by_identity(cache, tracks))
+
+
+def _reindex_by_identity(cache: dict, tracks: dict[str, Track]) -> dict:
     """Ancien cache indexé par ID Apple -> réindexé par clé d'identité."""
     if not cache or any(k.startswith(("isrc:", "q:", "upc:")) for k in cache):
         return cache
@@ -88,3 +101,22 @@ def migrate_cache(cache: dict, tracks: dict[str, Track]) -> dict:
             n += 1
     print(t("cache.migrated", n=n, unique=len(out)))
     return out
+
+
+def _rename_fields(cache: dict) -> dict:
+    """`tidal_id` -> `id` : l'identifiant est celui de la destination du jour, et
+    il y en a desormais plus d'une. Le cache est indexe sur l'identite
+    universelle du titre, pas sur le service : le renommer evite de le jeter.
+
+    Une valeur nulle est une decision — ce titre n'a pas ete trouve — et elle
+    survit au renommage, sans quoi la migration relancerait des centaines de
+    recherches deja faites.
+    """
+    stale = [k for k, m in cache.items()
+             if isinstance(m, dict) and not LEGACY_MATCH_FIELDS.keys().isdisjoint(m)]
+    if not stale:
+        return cache
+    for k in stale:
+        cache[k] = {LEGACY_MATCH_FIELDS.get(f, f): v for f, v in cache[k].items()}
+    print(t("cache.renamed", n=len(stale)))
+    return cache

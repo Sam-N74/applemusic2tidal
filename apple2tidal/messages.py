@@ -124,6 +124,7 @@ EN: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} unreadable ({error}), starting from scratch",
     "cache.migrated": "[cache] {n} entries migrated to the new format ({unique} unique)",
+    "cache.renamed": "[cache] {n} entries renamed: the match fields no longer name TIDAL",
     "state.moved": "[state] {n} file(s) moved to {path}",
     "cache.threshold_changed": "[cache] {n} cached entries no longer agree with threshold "
                                "{threshold:.0f} — searching again",
@@ -132,7 +133,7 @@ EN: dict[str, str] = {
     "match.plan": "[match] {needed} tracks → {groups} distinct, {todo} to search "
                   "(cache: {cached})",
     "match.line": "  {i}/{total} {flag} {artist} — {name}  ({score})",
-    "match.line_target": "  → {tidal_artist} — {tidal_title}",
+    "match.line_target": "  → {artist} — {title}",
     "match.error": "  [err] {error}",
     "match.finished": "[match] done in {seconds:.0f}s ({rate:.1f} tracks/s)",
     "match.report": "[match] {found}/{total} matched — unmatched listed in {path}",
@@ -270,6 +271,7 @@ FR: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} illisible ({error}), on repart de zéro",
     "cache.migrated": "[cache] {n} entrées migrées vers le nouveau format ({unique} uniques)",
+    "cache.renamed": "[cache] {n} entrées renommées : les champs du match ne nomment plus TIDAL",
     "state.moved": "[état] {n} fichier(s) déplacé(s) vers {path}",
     "cache.threshold_changed": "[cache] {n} entrées en cache ne s'accordent plus avec le seuil "
                                "{threshold:.0f} — nouvelle recherche",
@@ -278,7 +280,7 @@ FR: dict[str, str] = {
     "match.plan": "[match] {needed} titres → {groups} distincts, {todo} à rechercher "
                   "(cache : {cached})",
     "match.line": "  {i}/{total} {flag} {artist} — {name}  ({score})",
-    "match.line_target": "  → {tidal_artist} — {tidal_title}",
+    "match.line_target": "  → {artist} — {title}",
     "match.error": "  [err] {error}",
     "match.finished": "[match] terminé en {seconds:.0f}s ({rate:.1f} titres/s)",
     "match.report": "[match] {found}/{total} trouvés — non trouvés listés dans {path}",

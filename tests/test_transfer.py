@@ -56,7 +56,7 @@ def test_a_full_transfer_needs_nothing_but_the_contract(state_dir, library, dest
     assert destination.favorites == [101, 102, 103]
     assert destination.saved_albums == [900]
     # le cache est neutre : identite universelle en cle, ecrit sous le service
-    assert cache["isrc:USUM71703861"]["tidal_id"] == 101
+    assert cache["isrc:USUM71703861"]["id"] == 101
     assert cache["upc:123"] == {"album_id": 900}
     assert store.load_cache() == cache
     # le rapport liste le seul titre introuvable, avec sa playlist
