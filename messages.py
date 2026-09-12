@@ -25,7 +25,8 @@ EN: dict[str, str] = {
     "cli.help.playlists": "Recreate the playlists",
     "cli.help.favorites": "Whole library → TIDAL favorite tracks",
     "cli.help.loved": "Only 'loved' tracks → favorites",
-    "cli.help.albums": "Full albums (≥80%% of tracks) → favorite albums",
+    "cli.help.albums": "Albums listed by the export → favorite albums (matched by UPC; "
+                       "guessed from the tracks when the export lists none)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Only process these playlist name(s)",
     "cli.help.skip_smart": "Skip smart playlists",
@@ -168,7 +169,8 @@ FR: dict[str, str] = {
     "cli.help.playlists": "Recréer les playlists",
     "cli.help.favorites": "Toute la bibliothèque → titres favoris TIDAL",
     "cli.help.loved": "Seulement les titres 'aimés' → favoris",
-    "cli.help.albums": "Albums complets (≥80%% des titres) → albums favoris",
+    "cli.help.albums": "Albums listés par l'export → albums favoris (retrouvés par UPC ; "
+                       "déduits des titres si l'export n'en liste aucun)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Nom(s) de playlist à traiter uniquement",
     "cli.help.skip_smart": "Ignorer les playlists intelligentes",
