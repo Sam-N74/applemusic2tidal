@@ -6,7 +6,6 @@ partir des titres est un repli, pas le chemin principal.
 
 import json
 import threading
-import time
 from types import SimpleNamespace
 
 import pytest
@@ -212,20 +211,14 @@ def test_resolve_albums_looks_up_each_upc_once():
 
 
 def test_resolve_albums_searches_the_upcs_in_parallel():
-    """497 UPC en serie, c'est plusieurs minutes d'attente muette."""
+    """497 UPC en serie, c'est plusieurs minutes d'attente muette. Le rendez-vous
+    ci-dessous ne s'ouvre que si quatre recherches tournent en meme temps ; en
+    serie il expire et la recherche remonte l'erreur."""
     declared = [a2t.AppleAlbum(name=f"A{i}", artist="A", upc=str(i)) for i in range(8)]
-    live, peak = [], [0]
-    lock = threading.Lock()
+    rendezvous = threading.Barrier(4, timeout=2)
 
     def lookup(upc):
-        with lock:
-            live.append(upc)
-            peak[0] = max(peak[0], len(live))
-        time.sleep(0.02)
-        with lock:
-            live.remove(upc)
+        rendezvous.wait()
         return int(upc) + 1
 
-    found = a2t.resolve_albums(declared, {}, {}, lookup, workers=4)
-    assert peak[0] > 1
-    assert len(found) == 8
+    assert len(a2t.resolve_albums(declared, {}, {}, lookup, workers=4)) == 8

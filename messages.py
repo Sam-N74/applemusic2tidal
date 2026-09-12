@@ -147,6 +147,7 @@ EN: dict[str, str] = {
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} full albums detected",
     "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.resolving": "  looking up {n} albums by UPC…",
     "albums.source_upc": "UPC",
     "albums.source_tracks": "guessed from tracks",
     "albums.no_declared_list": "  this export lists no albums: they are guessed from the "
@@ -291,6 +292,7 @@ FR: dict[str, str] = {
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} albums complets détectés",
     "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.resolving": "  recherche de {n} albums par UPC…",
     "albums.source_upc": "UPC",
     "albums.source_tracks": "déduit des titres",
     "albums.no_declared_list": "  cet export ne liste pas les albums : ils sont déduits des "

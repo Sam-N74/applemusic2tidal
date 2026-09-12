@@ -303,7 +303,8 @@ def _majority_album_id(ts: list[AppleTrack], cache: dict) -> int | None:
 
 
 def resolve_albums(declared: list[AppleAlbum], tracks: dict[str, AppleTrack],
-                   cache: dict, upc_lookup) -> list[tuple[AppleAlbum, int, str]]:
+                   cache: dict, upc_lookup, workers: int = 1
+                   ) -> list[tuple[AppleAlbum, int, str]]:
     """Associe chaque album declare par l'export a un album TIDAL.
 
     Deux chemins : l'UPC quand l'export le fournit — exact, et il retrouve aussi
@@ -311,13 +312,23 @@ def resolve_albums(declared: list[AppleAlbum], tracks: dict[str, AppleTrack],
     majoritaire parmi les titres matches. `upc_lookup` est injecte pour que cette
     fonction reste testable sans compte TIDAL.
 
+    Les UPC sont cherches d'abord, dedoublonnes et en parallele : une
+    bibliotheque en compte des centaines et chacun est une requete.
+
     Renvoie [(album, id TIDAL, "upc" | "tracks")].
     """
+    upcs = sorted({al.upc for al in declared if al.upc})
+    if workers > 1 and len(upcs) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            by_upc = dict(zip(upcs, ex.map(upc_lookup, upcs), strict=True))
+    else:
+        by_upc = {u: upc_lookup(u) for u in upcs}
+
     grouped = tracks_by_album(tracks)
     out: list[tuple[AppleAlbum, int, str]] = []
     seen: set[int] = set()
     for al in declared:
-        tidal_id, source = (upc_lookup(al.upc) if al.upc else None), "upc"
+        tidal_id, source = (by_upc.get(al.upc) if al.upc else None), "upc"
         if tidal_id is None:
             tidal_id, source = _majority_album_id(grouped.get(al.key, []), cache), "tracks"
         if tidal_id and tidal_id not in seen:
@@ -437,9 +448,22 @@ class Tidal:
         return Match(None, round(best[0], 1) if best else 0.0, threshold=threshold)
 
     def album_by_upc(self, upc: str) -> int | None:
-        """Album TIDAL portant cet UPC. tidalapi leve quand il ne trouve rien."""
+        """Album TIDAL portant cet UPC, ou None.
+
+        tidalapi leve quand le catalogue ne contient pas l'UPC. L'absence est
+        traduite en liste vide *avant* d'atteindre `_call`, qui retente toute
+        exception : sinon chaque album manquant coute cinq requetes et quatre
+        secondes d'attente, et une bibliotheque en compte des centaines.
+        """
+        def lookup():
+            try:
+                return self.session.get_albums_by_barcode(upc)
+            except (tidalapi.exceptions.ObjectNotFound,
+                    tidalapi.exceptions.InvalidUPC):
+                return []
+
         try:
-            albums = self._call(self.session.get_albums_by_barcode, upc)
+            albums = self._call(lookup)
         except Exception:  # noqa: BLE001
             return None
         return albums[0].id if albums else None
@@ -972,10 +996,15 @@ def main():
     if args.albums:
         print("\n" + t("section.albums"))
         declared = parse_albums(args.library)
-        found = (resolve_albums(declared, tracks, cache, tidal.album_by_upc)
-                 if declared else guess_albums(tracks, cache))
-        if not declared:
+        if declared:
+            n_upc = len({al.upc for al in declared if al.upc})
+            if n_upc:
+                print(t("albums.resolving", n=n_upc))
+            found = resolve_albums(declared, tracks, cache, tidal.album_by_upc,
+                                   workers=args.workers)
+        else:
             print(t("albums.no_declared_list"))
+            found = guess_albums(tracks, cache)
         for al, _, source in found:
             print(t("albums.line", artist=al.artist, name=al.name,
                     source=t("albums.source_upc") if source == "upc"
