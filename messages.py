@@ -141,6 +141,11 @@ EN: dict[str, str] = {
     "section.favorites": "[TIDAL] favorites",
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} full albums detected",
+    "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.source_upc": "UPC",
+    "albums.source_tracks": "guessed from tracks",
+    "albums.no_declared_list": "  this export lists no albums: they are guessed from the "
+                               "tracks (the JSON export from music.apple.com lists them)",
     "main.dry_run_notice": "[TIDAL] --dry-run active: SIMULATION, nothing will be deleted.",
     "main.reading_account": "[TIDAL] reading account state…",
     "main.current_account": "[TIDAL] current account state…",
@@ -275,6 +280,11 @@ FR: dict[str, str] = {
     "section.favorites": "[TIDAL] favoris",
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} albums complets détectés",
+    "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.source_upc": "UPC",
+    "albums.source_tracks": "déduit des titres",
+    "albums.no_declared_list": "  cet export ne liste pas les albums : ils sont déduits des "
+                               "titres (l'export JSON de music.apple.com les liste)",
     "main.dry_run_notice": "[TIDAL] --dry-run actif : SIMULATION, rien ne sera supprimé.",
     "main.reading_account": "[TIDAL] lecture de l'état du compte…",
     "main.current_account": "[TIDAL] état actuel du compte…",
