@@ -221,3 +221,62 @@ def test_verify_wipe_short_circuits_in_dry_run():
     t = make_client(dry_run=True)
     assert t.verify_wipe(snapshot(), playlists=True, favorites=True, albums=True) is True
     t.session.user.playlists.assert_not_called()
+
+
+# -------------------------------------------------- playlists homonymes
+def user_playlist(name, pid=None):
+    pl = MagicMock(spec=tidalapi.playlist.UserPlaylist)
+    pl.name = name
+    pl.id = pid or name
+    return pl
+
+
+def test_existing_playlists_keeps_both_homonyms():
+    """Indexees par nom, deux playlists du meme nom n'en laissaient qu'une."""
+    t = make_client()
+    t.session.user.playlists.return_value = [user_playlist("Rock", "a"),
+                                             user_playlist("Rock", "b"),
+                                             user_playlist("Jazz", "c")]
+    existing = t.existing_playlists()
+    assert sorted(existing) == ["Jazz", "Rock"]
+    assert [p.id for p in existing["Rock"]] == ["a", "b"]
+
+
+def test_overwrite_refuses_an_ambiguous_name(capsys):
+    """Deux playlists "Rock" : --overwrite en viderait une au hasard."""
+    t = make_client()
+    a, b = user_playlist("Rock", "a"), user_playlist("Rock", "b")
+
+    t.create_playlist("Rock", "desc", [1, 2], {"Rock": [a, b]}, overwrite=True)
+
+    a.clear.assert_not_called()
+    b.clear.assert_not_called()
+    t.session.user.create_playlist.assert_not_called()
+    assert "[skip]" in capsys.readouterr().out
+
+
+def test_overwrite_clears_the_only_playlist_of_that_name():
+    t = make_client()
+    pl = user_playlist("Rock", "a")
+
+    t.create_playlist("Rock", "desc", [1, 2], {"Rock": [pl]}, overwrite=True)
+
+    pl.clear.assert_called_once()
+    pl.add.assert_called_once()
+
+
+def test_existing_playlist_is_left_alone_without_overwrite(capsys):
+    t = make_client()
+    pl = user_playlist("Rock", "a")
+
+    t.create_playlist("Rock", "desc", [1], {"Rock": [pl]}, overwrite=False)
+
+    pl.clear.assert_not_called()
+    pl.add.assert_not_called()
+    assert "already exists" in capsys.readouterr().out
+
+
+def test_a_new_name_is_created():
+    t = make_client()
+    t.create_playlist("Nouvelle", "desc", [1], {}, overwrite=False)
+    t.session.user.create_playlist.assert_called_once_with("Nouvelle", "desc")

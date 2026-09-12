@@ -47,9 +47,9 @@ On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the
 |---|---|
 | `--only "Name"` | Process only this playlist (repeatable) |
 | `--skip-smart` | Ignore smart playlists |
-| `--overwrite` | Clear and refill an existing TIDAL playlist of the same name (otherwise it is skipped) |
-| `--threshold 85` | Minimum match score (default 78). Higher means fewer false positives and more unmatched tracks |
-| `--rematch` | Retry unmatched tracks (useful after lowering the threshold) |
+| `--overwrite` | Clear and refill an existing TIDAL playlist of the same name (otherwise it is skipped). If two TIDAL playlists share that name, neither is touched |
+| `--threshold 85` | Minimum match score (default 78). Higher means fewer false positives and more unmatched tracks. Cached matches that no longer clear the new threshold are searched again |
+| `--rematch` | Search again for the tracks that stayed unmatched at the same threshold |
 | `--workers 8` | Parallel TIDAL requests (default 8) |
 | `--delay 0.5` | Pause between requests; add only if TIDAL rate-limits |
 | `--reset` | **Destructive**: empties the TIDAL account before importing (see below) |
@@ -92,7 +92,7 @@ A track with an ISRC (JSON export) is resolved directly. Otherwise it is searche
 - title 55%, artist 35%, album 10% (fuzzy, accent- and case-insensitive, with `feat.`, `Remastered` and similar suffixes stripped)
 - a penalty when durations differ by more than 5 s, a heavy penalty beyond 20 s
 
-Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
+Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Each entry records the threshold it was decided under, so changing `--threshold` re-evaluates what it should. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
 
 ## Speed
 

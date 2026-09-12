@@ -25,7 +25,8 @@ EN: dict[str, str] = {
     "cli.help.playlists": "Recreate the playlists",
     "cli.help.favorites": "Whole library → TIDAL favorite tracks",
     "cli.help.loved": "Only 'loved' tracks → favorites",
-    "cli.help.albums": "Full albums (≥80%% of tracks) → favorite albums",
+    "cli.help.albums": "Albums listed by the export → favorite albums (matched by UPC; "
+                       "guessed from the tracks when the export lists none)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Only process these playlist name(s)",
     "cli.help.skip_smart": "Skip smart playlists",
@@ -105,6 +106,8 @@ EN: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": '  [dry] playlist "{name}": {n} tracks',
     "playlist.exists": '  [skip] "{name}" already exists (--overwrite to clear and recreate it)',
+    "playlist.ambiguous": '  [skip] {n} TIDAL playlists are named "{name}": nothing was touched, '
+                          "rename or delete one and run again",
     "playlist.created": '  [ok] "{name}": {n} tracks',
     "playlist.no_match": '  [skip] "{name}": no track matched',
     "playlist.description": "Imported from Apple Music",
@@ -121,6 +124,8 @@ EN: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} unreadable ({error}), starting from scratch",
     "cache.migrated": "[cache] {n} entries migrated to the new format ({unique} unique)",
+    "cache.threshold_changed": "[cache] {n} cached entries no longer agree with threshold "
+                               "{threshold:.0f} — searching again",
 
     # ----------------------------------------------------------------- matching
     "match.plan": "[match] {needed} tracks → {groups} distinct, {todo} to search "
@@ -141,6 +146,11 @@ EN: dict[str, str] = {
     "section.favorites": "[TIDAL] favorites",
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} full albums detected",
+    "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.source_upc": "UPC",
+    "albums.source_tracks": "guessed from tracks",
+    "albums.no_declared_list": "  this export lists no albums: they are guessed from the "
+                               "tracks (the JSON export from music.apple.com lists them)",
     "main.dry_run_notice": "[TIDAL] --dry-run active: SIMULATION, nothing will be deleted.",
     "main.reading_account": "[TIDAL] reading account state…",
     "main.current_account": "[TIDAL] current account state…",
@@ -159,7 +169,8 @@ FR: dict[str, str] = {
     "cli.help.playlists": "Recréer les playlists",
     "cli.help.favorites": "Toute la bibliothèque → titres favoris TIDAL",
     "cli.help.loved": "Seulement les titres 'aimés' → favoris",
-    "cli.help.albums": "Albums complets (≥80%% des titres) → albums favoris",
+    "cli.help.albums": "Albums listés par l'export → albums favoris (retrouvés par UPC ; "
+                       "déduits des titres si l'export n'en liste aucun)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Nom(s) de playlist à traiter uniquement",
     "cli.help.skip_smart": "Ignorer les playlists intelligentes",
@@ -239,6 +250,8 @@ FR: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": "  [dry] playlist « {name} » : {n} titres",
     "playlist.exists": "  [skip] « {name} » existe déjà (--overwrite pour la vider et recréer)",
+    "playlist.ambiguous": "  [skip] {n} playlists TIDAL portent le nom « {name} » : rien n'a "
+                          "été touché, renomme ou supprime l'une d'elles puis relance",
     "playlist.created": "  [ok] « {name} » : {n} titres",
     "playlist.no_match": "  [skip] « {name} » : aucun titre trouvé",
     "playlist.description": "Importée d'Apple Music",
@@ -255,6 +268,8 @@ FR: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} illisible ({error}), on repart de zéro",
     "cache.migrated": "[cache] {n} entrées migrées vers le nouveau format ({unique} uniques)",
+    "cache.threshold_changed": "[cache] {n} entrées en cache ne s'accordent plus avec le seuil "
+                               "{threshold:.0f} — nouvelle recherche",
 
     # ----------------------------------------------------------------- matching
     "match.plan": "[match] {needed} titres → {groups} distincts, {todo} à rechercher "
@@ -275,6 +290,11 @@ FR: dict[str, str] = {
     "section.favorites": "[TIDAL] favoris",
     "section.albums": "[TIDAL] albums",
     "albums.detected": "  {n} albums complets détectés",
+    "albums.line": "  - {artist} — {name}  [{source}]",
+    "albums.source_upc": "UPC",
+    "albums.source_tracks": "déduit des titres",
+    "albums.no_declared_list": "  cet export ne liste pas les albums : ils sont déduits des "
+                               "titres (l'export JSON de music.apple.com les liste)",
     "main.dry_run_notice": "[TIDAL] --dry-run actif : SIMULATION, rien ne sera supprimé.",
     "main.reading_account": "[TIDAL] lecture de l'état du compte…",
     "main.current_account": "[TIDAL] état actuel du compte…",

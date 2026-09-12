@@ -78,3 +78,53 @@ def test_migrate_cache_collapses_duplicates(mk_track):
 
 def test_migrate_cache_empty():
     assert a2t.migrate_cache({}, {}) == {}
+
+
+# ----------------------------------------------------------------- seuil
+def test_match_records_the_threshold_that_validated_it():
+    """Sans ce champ, on ne sait pas relire une entree de cache a la main."""
+    m = a2t.Match(tidal_id=1, score=81.0, threshold=78.0)
+    assert a2t.asdict(m)["threshold"] == 78.0
+
+
+def test_cached_match_is_replayed_when_the_threshold_goes_up():
+    entry = {"tidal_id": 1, "score": 81.0, "threshold": 78.0}
+    assert a2t.needs_match(entry, threshold=90.0, rematch=False) is True
+
+
+def test_cached_match_is_kept_when_it_still_clears_the_threshold():
+    entry = {"tidal_id": 1, "score": 95.0, "threshold": 78.0}
+    assert a2t.needs_match(entry, threshold=90.0, rematch=False) is False
+
+
+def test_isrc_match_survives_any_threshold():
+    entry = {"tidal_id": 1, "score": 100.0, "threshold": 78.0}
+    assert a2t.needs_match(entry, threshold=100.0, rematch=False) is False
+
+
+def test_cached_failure_is_replayed_when_the_threshold_goes_down():
+    """Meilleur candidat a 81, refuse a 90 : a 78 il passerait."""
+    entry = {"tidal_id": None, "score": 81.0, "threshold": 90.0}
+    assert a2t.needs_match(entry, threshold=78.0, rematch=False) is True
+
+
+def test_cached_failure_stays_a_failure_at_the_same_threshold():
+    entry = {"tidal_id": None, "score": 40.0, "threshold": 78.0}
+    assert a2t.needs_match(entry, threshold=78.0, rematch=False) is False
+
+
+def test_rematch_replays_the_failures_only():
+    failure = {"tidal_id": None, "score": 40.0, "threshold": 78.0}
+    success = {"tidal_id": 1, "score": 95.0, "threshold": 78.0}
+    assert a2t.needs_match(failure, threshold=78.0, rematch=True) is True
+    assert a2t.needs_match(success, threshold=78.0, rematch=True) is False
+
+
+def test_absent_entry_is_always_searched():
+    assert a2t.needs_match(None, threshold=78.0, rematch=False) is True
+
+
+def test_entry_from_an_older_cache_is_judged_on_its_score():
+    """Les caches d'avant ce champ n'ont pas de threshold : le score suffit a decider."""
+    assert a2t.needs_match({"tidal_id": 1, "score": 81.0}, threshold=90.0, rematch=False) is True
+    assert a2t.needs_match({"tidal_id": 1, "score": 95.0}, threshold=90.0, rematch=False) is False

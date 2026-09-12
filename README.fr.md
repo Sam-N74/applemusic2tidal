@@ -47,9 +47,9 @@ Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : il suffit de l'
 |---|---|
 | `--only "Nom"` | Ne traite que cette playlist (répétable) |
 | `--skip-smart` | Ignore les playlists intelligentes |
-| `--overwrite` | Vide et recrée une playlist TIDAL du même nom (sinon elle est ignorée) |
-| `--threshold 85` | Score minimal de matching (défaut 78). Plus haut = moins de faux positifs, plus de non-trouvés |
-| `--rematch` | Retente les titres non trouvés (utile après avoir abaissé le seuil) |
+| `--overwrite` | Vide et recrée une playlist TIDAL du même nom (sinon elle est ignorée). Si deux playlists TIDAL portent ce nom, aucune n'est touchée |
+| `--threshold 85` | Score minimal de matching (défaut 78). Plus haut = moins de faux positifs, plus de non-trouvés. Les matchs en cache qui ne passent plus le nouveau seuil sont recherchés à nouveau |
+| `--rematch` | Recherche à nouveau les titres restés introuvables à seuil égal |
 | `--workers 8` | Requêtes TIDAL en parallèle (défaut 8) |
 | `--delay 0.5` | Pause entre requêtes, à ajouter seulement en cas de rate-limit |
 | `--reset` | **Destructif** : vide le compte TIDAL avant l'import (voir ci-dessous) |
@@ -92,7 +92,7 @@ Un titre disposant d'un ISRC (export JSON) est résolu directement. Sinon, il es
 - titre 55 %, artiste 35 %, album 10 % (approché, insensible aux accents et à la casse, suffixes « feat. », « Remastered » et assimilés retirés)
 - pénalité si les durées diffèrent de plus de 5 s, forte pénalité au-delà de 20 s
 
-Les résultats sont mis en cache dans `.apple2tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
+Les résultats sont mis en cache dans `.apple2tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Chaque entrée retient le seuil sous lequel elle a été décidée, si bien que changer `--threshold` révalue ce qui doit l'être. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
 
 ## Vitesse
 

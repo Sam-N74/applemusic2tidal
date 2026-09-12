@@ -73,6 +73,37 @@ def test_parse_json_tolerates_missing_fields(tmp_path):
     assert playlists == []
 
 
+def test_parse_json_reads_the_album_artist(tmp_path):
+    """Sur une compilation, l'artiste de l'album n'est pas celui du titre."""
+    path = write_json(tmp_path, {"songs": [
+        {"id": "1", "name": "Titre", "artist": "Artiste A", "album": "Bande originale",
+         "album_artist": "Various Artists"},
+    ]})
+    tracks, _ = a2t.parse_library(path)
+    assert tracks["1"].album_artist == "Various Artists"
+
+
+def test_parse_json_falls_back_to_the_track_artist(tmp_path):
+    """Export plus ancien, sans album_artist : le comportement precedent reste."""
+    path = write_json(tmp_path, {"songs": [
+        {"id": "1", "name": "Titre", "artist": "Artiste A", "album": "Album"},
+    ]})
+    tracks, _ = a2t.parse_library(path)
+    assert tracks["1"].album_artist == "Artiste A"
+
+
+def test_parse_json_groups_a_compilation_into_one_album(tmp_path):
+    """Le regroupement d'albums suit album_artist : sinon chaque titre fait album."""
+    path = write_json(tmp_path, {"songs": [
+        {"id": "1", "name": "A", "artist": "Artiste A", "album": "Bande originale",
+         "album_artist": "Various Artists"},
+        {"id": "2", "name": "B", "artist": "Artiste B", "album": "Bande originale",
+         "album_artist": "Various Artists"},
+    ]})
+    tracks, _ = a2t.parse_library(path)
+    assert len(a2t.tracks_by_album(tracks)) == 1
+
+
 # -------------------------------------------------------------------- XML
 def write_xml(tmp_path, tracks: dict, playlists: list) -> "a2t.Path":
     p = tmp_path / "Library.xml"
