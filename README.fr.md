@@ -2,9 +2,42 @@
 
 [English](README.md) · **Français**
 
-Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers TIDAL.
+Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers TIDAL, depuis ta propre machine.
 
-## 1. Exporter la bibliothèque Apple Music
+## Pourquoi celui-ci
+
+- **Rien ne quitte ta machine.** Aucun compte, aucun envoi, aucun serveur qui lit ta bibliothèque. Les services de transfert en ligne ne peuvent pas fonctionner ainsi — Soundiiz, par exemple, stocke le contenu des bibliothèques sur des serveurs Google Cloud aux États-Unis.
+- **Aucun plafond de titres.** Une bibliothèque entière passe en une exécution. La même demande neuf transferts manuels sur l'offre gratuite de Soundiiz, et reste hors de portée sur celle de TuneMyMusic (500 titres) ou de FreeYourMusic (600 titres, une playlist).
+- **On voit ce qui a échoué.** Chaque titre qui n'est pas passé atterrit dans `unmatched.csv`, avec son meilleur score et les playlists concernées — pas un « 43 titres non trouvés » dont on ne peut rien faire. `--dry-run` montre le résultat avant la moindre écriture.
+- **C'est réversible.** `--wipe` revide le compte TIDAL, après sauvegarde JSON et confirmation.
+
+Sur une vraie bibliothèque — 1800 titres, 11 playlists — 97 % de correspondance exacte, parce que l'export navigateur porte l'ISRC de chaque titre et que TIDAL le résout directement. Les six qui ont échoué tiennent sur une ligne chacun (celle-ci est inventée — le vrai fichier, c'est ta bibliothèque) :
+
+```csv
+artist,title,album,best_score,playlists
+Artiste,Titre (feat. Quelqu'un) [Bonus Track],Album (Expanded Edition),71.2,Road trip; Late night
+```
+
+## Pourquoi pas Soundiiz
+
+Soundiiz, TuneMyMusic et FreeYourMusic font trois choses mieux : 20+ plateformes, synchronisation planifiée sur leurs offres payantes, et zéro installation — ils tournent dans un onglet, là où il faut ici Python, et une console pour l'export.
+
+| | apple2tidal | Soundiiz | TuneMyMusic | FreeYourMusic |
+|---|---|---|---|---|
+| Où va ta bibliothèque | reste sur ton disque | serveurs Google Cloud, États-Unis | leurs serveurs | leurs serveurs |
+| Limite gratuite | aucune | 200 titres par transfert, un à la fois ; albums, artistes et titres aimés réservés au premium | 500 titres au total | 600 titres, une playlist |
+| Offre payante | — | ~39 €/an | ~24 $/an | ~5 $, puis abonnements |
+| Rapport de ce qui a échoué | `unmatched.csv`, scoré, par playlist | un décompte | un décompte | un décompte |
+
+Pour déplacer 200 titres une fois, Soundiiz est plus rapide. Pour déplacer une bibliothèque à laquelle tu tiens, ou pour sortir ton historique d'écoute des serveurs d'un autre, c'est celui-ci.
+
+## 1. Installer
+
+```bash
+pip install -r requirements.txt
+```
+
+## 2. Exporter la bibliothèque Apple Music
 
 ### Option A — depuis le navigateur (recommandé, fournit les ISRC)
 
@@ -18,12 +51,6 @@ Le JSON contient titres, playlists, titres aimés, albums, ainsi que l'ISRC de c
 ### Option B — depuis l'app Musique (Mac) / iTunes (Windows)
 
 **Fichier → Bibliothèque → Exporter la bibliothèque…** → `Bibliothèque.xml`. Ce format ne contient pas d'ISRC : le matching est uniquement approché.
-
-## 2. Installer
-
-```bash
-pip install -r requirements.txt
-```
 
 ## 3. Lancer
 
@@ -104,9 +131,9 @@ Trois facteurs entrent en jeu :
 
 Côté écriture, les titres déjà en favoris sont détectés et ignorés, et les suppressions de `--reset` sont parallélisées.
 
-## Sécurité et vie privée
+## Fichiers qui doivent rester locaux
 
-Le dépôt ne contient que du code, aucun secret. Les fichiers suivants ne doivent jamais être committés ; tous sont couverts par le `.gitignore` fourni :
+Le dépôt ne contient que du code, aucun secret. Les fichiers ci-dessous sont ta bibliothèque en clair, et tous sont couverts par le `.gitignore` fourni :
 
 | Fichier | Raison |
 |---|---|
@@ -129,4 +156,4 @@ Si l'un d'eux a déjà été committé, `git rm --cached` ne suffit pas : le fic
 
 ## Licence
 
-MIT.
+MIT, gratuit, et ça le reste : la promesse « rien ne quitte ta machine » ne vaut quelque chose que si elle tient encore l'an prochain. Si l'outil t'a épargné un après-midi, une issue qui le dit suffit comme paiement.
