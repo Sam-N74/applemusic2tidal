@@ -92,7 +92,7 @@ Un titre disposant d'un ISRC (export JSON) est résolu directement. Sinon, il es
 - titre 55 %, artiste 35 %, album 10 % (approché, insensible aux accents et à la casse, suffixes « feat. », « Remastered » et assimilés retirés)
 - pénalité si les durées diffèrent de plus de 5 s, forte pénalité au-delà de 20 s
 
-Les résultats sont mis en cache dans `.apple2tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Chaque entrée retient le seuil sous lequel elle a été décidée, si bien que changer `--threshold` révalue ce qui doit l'être. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
+Les résultats sont mis en cache dans `.apple2tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Chaque entrée retient le seuil sous lequel elle a été décidée, si bien que changer `--threshold` révalue ce qui doit l'être. `--albums` y met aussi en cache ses recherches par UPC : la deuxième exécution ne coûte plus une seule requête. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
 
 ## Vitesse
 

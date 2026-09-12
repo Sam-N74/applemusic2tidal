@@ -728,7 +728,7 @@ def load_cache() -> dict[str, dict]:
 
 def migrate_cache(cache: dict, tracks: dict) -> dict:
     """Ancien cache indexé par ID Apple -> réindexé par clé d'identité."""
-    if not cache or any(k.startswith(("isrc:", "q:")) for k in cache):
+    if not cache or any(k.startswith(("isrc:", "q:", "upc:")) for k in cache):
         return cache
     out, n = {}, 0
     for apple_id, m in cache.items():
@@ -738,6 +738,28 @@ def migrate_cache(cache: dict, tracks: dict) -> dict:
             n += 1
     print(t("cache.migrated", n=n, unique=len(out)))
     return out
+
+
+def cached_upc_lookup(cache: dict, lookup, rematch: bool = False):
+    """Enveloppe `lookup` d'une memoire disque, sous le prefixe `upc:`.
+
+    Une bibliotheque declare des centaines d'UPC et chacun est une requete, alors
+    que le catalogue TIDAL ne bouge pas d'une execution a l'autre. L'absence est
+    memorisee comme le reste : c'est elle qui coute le plus cher. `--rematch`
+    rejoue les absences, au cas ou l'album soit arrive depuis.
+
+    L'ecriture se fait depuis plusieurs threads, mais sur des cles distinctes, et
+    poser une cle est atomique : pas de verrou a prendre.
+    """
+    def resolve(upc: str) -> int | None:
+        key = "upc:" + upc
+        entry = cache.get(key)
+        if entry is not None and not (rematch and entry.get("album_id") is None):
+            return entry.get("album_id")
+        album_id = lookup(upc)
+        cache[key] = {"album_id": album_id}
+        return album_id
+    return resolve
 
 
 def needs_match(entry: dict | None, threshold: float, rematch: bool) -> bool:
@@ -997,11 +1019,16 @@ def main():
         print("\n" + t("section.albums"))
         declared = parse_albums(args.library)
         if declared:
-            n_upc = len({al.upc for al in declared if al.upc})
-            if n_upc:
-                print(t("albums.resolving", n=n_upc))
-            found = resolve_albums(declared, tracks, cache, tidal.album_by_upc,
+            upcs = {al.upc for al in declared if al.upc}
+            todo_upc = {u for u in upcs if "upc:" + u not in cache}
+            if upcs:
+                print(t("albums.resolving", n=len(todo_upc),
+                        cached=len(upcs) - len(todo_upc)))
+            found = resolve_albums(declared, tracks, cache,
+                                   cached_upc_lookup(cache, tidal.album_by_upc,
+                                                     args.rematch),
                                    workers=args.workers)
+            save_cache(cache)
         else:
             print(t("albums.no_declared_list"))
             found = guess_albums(tracks, cache)
