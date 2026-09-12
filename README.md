@@ -92,7 +92,7 @@ A track with an ISRC (JSON export) is resolved directly. Otherwise it is searche
 - title 55%, artist 35%, album 10% (fuzzy, accent- and case-insensitive, with `feat.`, `Remastered` and similar suffixes stripped)
 - a penalty when durations differ by more than 5 s, a heavy penalty beyond 20 s
 
-Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Each entry records the threshold it was decided under, so changing `--threshold` re-evaluates what it should. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
+Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Each entry records the threshold it was decided under, so changing `--threshold` re-evaluates what it should. `--albums` caches its UPC lookups there too, so a second run costs no request at all. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
 
 ## Speed
 
