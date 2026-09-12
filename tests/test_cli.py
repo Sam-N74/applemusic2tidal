@@ -4,13 +4,15 @@ Tous ces cas sont rejetes par argparse avant la moindre connexion TIDAL :
 aucun test ici ne touche le reseau.
 """
 
+import sys
+
 import pytest
 
 import apple2tidal as a2t
 
 
 def run(monkeypatch, *argv):
-    monkeypatch.setattr(a2t.sys, "argv", ["apple2tidal.py", *argv])
+    monkeypatch.setattr(sys, "argv", ["apple2tidal.py", *argv])
     with pytest.raises(SystemExit) as exc:
         a2t.main()
     return exc.value.code

@@ -11,14 +11,14 @@ dependencies = ["tidalapi>=0.8", "rapidfuzz>=3.0"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
-apple2tidal = "apple2tidal:main"
+apple2tidal = "apple2tidal.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["apple2tidal", "messages"]
+packages = ["apple2tidal", "apple2tidal.providers"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

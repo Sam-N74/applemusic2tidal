@@ -1,22 +1,23 @@
 """Cache disque des matchs : lecture tolerante, ecriture atomique, migration."""
 
 import json
+from dataclasses import asdict
 
 import apple2tidal as a2t
 
 
 def test_load_cache_missing_file(state_dir):
-    assert a2t.load_cache() == {}
+    assert a2t.load_cache(state_dir / "matches.json") == {}
 
 
 def test_save_then_load_roundtrip(state_dir):
     cache = {"isrc:USUM71703861": {"tidal_id": 123, "score": 100.0}}
-    a2t.save_cache(cache)
-    assert a2t.load_cache() == cache
+    a2t.save_cache(cache, state_dir / "matches.json")
+    assert a2t.load_cache(state_dir / "matches.json") == cache
 
 
 def test_save_cache_leaves_no_temp_file(state_dir):
-    a2t.save_cache({"q:a|b": {"tidal_id": None, "score": 0.0}})
+    a2t.save_cache({"q:a|b": {"tidal_id": None, "score": 0.0}}, state_dir / "matches.json")
     assert not (state_dir / "matches.tmp").exists()
     assert (state_dir / "matches.json").exists()
 
@@ -25,19 +26,19 @@ def test_load_cache_survives_corrupted_file(state_dir, capsys):
     """Un cache tronque (interruption brutale) ne doit pas faire planter le run."""
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "matches.json").write_text('{"a": {"tidal', encoding="utf-8")
-    assert a2t.load_cache() == {}
+    assert a2t.load_cache(state_dir / "matches.json") == {}
     assert "unreadable" in capsys.readouterr().out
 
 
 def test_load_cache_empty_file(state_dir):
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "matches.json").write_text("   ", encoding="utf-8")
-    assert a2t.load_cache() == {}
+    assert a2t.load_cache(state_dir / "matches.json") == {}
 
 
 def test_save_cache_handles_non_ascii(state_dir):
     cache = {"q:bjork|joga": {"tidal_id": 1, "tidal_title": "Jóga", "tidal_artist": "Björk"}}
-    a2t.save_cache(cache)
+    a2t.save_cache(cache, state_dir / "matches.json")
     reread = json.loads((state_dir / "matches.json").read_text(encoding="utf-8"))
     assert reread["q:bjork|joga"]["tidal_title"] == "Jóga"
 
@@ -84,7 +85,7 @@ def test_migrate_cache_empty():
 def test_match_records_the_threshold_that_validated_it():
     """Sans ce champ, on ne sait pas relire une entree de cache a la main."""
     m = a2t.Match(tidal_id=1, score=81.0, threshold=78.0)
-    assert a2t.asdict(m)["threshold"] == 78.0
+    assert asdict(m)["threshold"] == 78.0
 
 
 def test_cached_match_is_replayed_when_the_threshold_goes_up():

@@ -6,6 +6,7 @@ partir des titres est un repli, pas le chemin principal.
 
 import json
 import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -61,7 +62,7 @@ def cached(track, tidal_id=1, album_id=10):
 
 
 def test_resolve_albums_uses_the_upc_first(mk_track):
-    album = a2t.AppleAlbum(name="Kind of Blue", artist="Miles Davis", upc="886972394725")
+    album = a2t.Album(name="Kind of Blue", artist="Miles Davis", upc="886972394725")
     asked = []
 
     def lookup(upc):
@@ -75,14 +76,14 @@ def test_resolve_albums_uses_the_upc_first(mk_track):
 
 def test_resolve_albums_finds_an_album_owned_only_in_part(mk_track):
     """Un seul titre possede sur douze : l'UPC le retrouve, l'heuristique non."""
-    album = a2t.AppleAlbum(name="Long Album", artist="Artiste", track_count=12, upc="1")
+    album = a2t.Album(name="Long Album", artist="Artiste", track_count=12, upc="1")
     track = mk_track(name="Titre 1", artist="Artiste", album="Long Album")
     found = a2t.resolve_albums([album], {"1": track}, cached(track), lambda upc: 42)
     assert [tid for _, tid, _ in found] == [42]
 
 
 def test_resolve_albums_falls_back_to_the_matched_tracks(mk_track):
-    album = a2t.AppleAlbum(name="Album", artist="Artiste", upc=None)
+    album = a2t.Album(name="Album", artist="Artiste", upc=None)
     tracks = {str(i): mk_track(tid=str(i), name=f"Titre {i}", artist="Artiste",
                                album="Album") for i in (1, 2, 3)}
     cache = {}
@@ -94,7 +95,7 @@ def test_resolve_albums_falls_back_to_the_matched_tracks(mk_track):
 
 def test_resolve_albums_groups_a_compilation_on_its_album_artist(mk_track):
     """Deux artistes differents, un seul album_artist : un seul album, pas deux."""
-    album = a2t.AppleAlbum(name="Bande originale", artist="Various Artists")
+    album = a2t.Album(name="Bande originale", artist="Various Artists")
     tracks = {
         "1": mk_track(tid="1", name="A", artist="Artiste A",
                       album="Bande originale", album_artist="Various Artists"),
@@ -110,7 +111,7 @@ def test_resolve_albums_groups_a_compilation_on_its_album_artist(mk_track):
 
 def test_resolve_albums_skips_a_tie_between_two_tidal_albums(mk_track):
     """Un titre sur l'edition deluxe, un sur l'originale : rien de majoritaire."""
-    album = a2t.AppleAlbum(name="Album", artist="Artiste")
+    album = a2t.Album(name="Album", artist="Artiste")
     tracks = {"1": mk_track(tid="1", name="A", artist="Artiste", album="Album"),
               "2": mk_track(tid="2", name="B", artist="Artiste", album="Album")}
     cache = {**cached(tracks["1"], album_id=1), **cached(tracks["2"], album_id=2)}
@@ -118,14 +119,14 @@ def test_resolve_albums_skips_a_tie_between_two_tidal_albums(mk_track):
 
 
 def test_resolve_albums_never_returns_the_same_tidal_album_twice(mk_track):
-    albums = [a2t.AppleAlbum(name="Album", artist="Artiste", upc="1"),
-              a2t.AppleAlbum(name="Album (Deluxe)", artist="Artiste", upc="2")]
+    albums = [a2t.Album(name="Album", artist="Artiste", upc="1"),
+              a2t.Album(name="Album (Deluxe)", artist="Artiste", upc="2")]
     found = a2t.resolve_albums(albums, {}, {}, lambda upc: 7)
     assert [tid for _, tid, _ in found] == [7]
 
 
 def test_resolve_albums_ignores_an_album_with_no_matched_track(mk_track):
-    album = a2t.AppleAlbum(name="Jamais trouve", artist="Artiste")
+    album = a2t.Album(name="Jamais trouve", artist="Artiste")
     assert a2t.resolve_albums([album], {}, {}, lambda upc: None) == []
 
 
@@ -160,7 +161,7 @@ def test_guess_albums_ignores_a_group_matched_below_eighty_percent(mk_track):
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
     """Les pauses de _call sont reelles : sans ca, ce fichier durerait des secondes."""
-    monkeypatch.setattr(a2t.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
 
 
 def test_album_by_upc_returns_the_first_album(tidal_client):
@@ -202,9 +203,9 @@ def test_a_network_error_is_still_retried(tidal_client):
 
 def test_resolve_albums_looks_up_each_upc_once():
     """Deux editions d'un meme album partagent leur UPC : une seule requete."""
-    declared = [a2t.AppleAlbum(name="Album", artist="A", upc="1"),
-                a2t.AppleAlbum(name="Album", artist="A", upc="1"),
-                a2t.AppleAlbum(name="Autre", artist="B", upc="2")]
+    declared = [a2t.Album(name="Album", artist="A", upc="1"),
+                a2t.Album(name="Album", artist="A", upc="1"),
+                a2t.Album(name="Autre", artist="B", upc="2")]
     calls = []
     a2t.resolve_albums(declared, {}, {}, lambda upc: calls.append(upc) or 1)
     assert sorted(calls) == ["1", "2"]
@@ -214,7 +215,7 @@ def test_resolve_albums_searches_the_upcs_in_parallel():
     """497 UPC en serie, c'est plusieurs minutes d'attente muette. Le rendez-vous
     ci-dessous ne s'ouvre que si quatre recherches tournent en meme temps ; en
     serie il expire et la recherche remonte l'erreur."""
-    declared = [a2t.AppleAlbum(name=f"A{i}", artist="A", upc=str(i)) for i in range(8)]
+    declared = [a2t.Album(name=f"A{i}", artist="A", upc=str(i)) for i in range(8)]
     rendezvous = threading.Barrier(4, timeout=2)
 
     def lookup(upc):

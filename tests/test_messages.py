@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 import apple2tidal as a2t
-import messages
-from messages import EN, FR, resolve_lang, set_lang, t
+from apple2tidal import messages
+from apple2tidal.messages import EN, FR, resolve_lang, set_lang, t
 
 
 def placeholders(template: str) -> set[str]:
@@ -37,19 +37,24 @@ def test_no_translation_is_empty():
     assert sorted(blank) == []
 
 
-def test_every_key_used_by_the_script_exists():
+def keys_used_by_the_package() -> set[str]:
+    package = Path(a2t.__file__).parent
+    # messages.py definit les cles, il ne les utilise pas : son texte est hors champ
+    source = "\n".join(p.read_text(encoding="utf-8") for p in package.rglob("*.py")
+                       if p.name != "messages.py")
+    return set(re.findall(r"""\bt\(\s*["']([\w.]+)["']""", source))
+
+
+def test_every_key_used_by_the_package_exists():
     """Empeche un t("cle.oubliee") d'atteindre l'utilisateur en KeyError."""
-    source = Path(a2t.__file__).read_text(encoding="utf-8")
-    used = set(re.findall(r"""\bt\(\s*["']([\w.]+)["']""", source))
+    used = keys_used_by_the_package()
     assert used, "aucun appel a t() trouve : le motif de recherche est a revoir"
     assert used <= set(EN)
 
 
 def test_no_key_is_left_unused():
     """Une cle orpheline est du texte mort : on la supprime plutot que la traduire."""
-    source = Path(a2t.__file__).read_text(encoding="utf-8")
-    used = set(re.findall(r"""\bt\(\s*["']([\w.]+)["']""", source))
-    assert set(EN) - used == set()
+    assert set(EN) - keys_used_by_the_package() == set()
 
 
 # ------------------------------------------------------------------ t()

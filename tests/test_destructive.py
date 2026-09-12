@@ -5,11 +5,13 @@ Rien ne touche un vrai compte : la session TIDAL est remplacee par des doubles.
 par `__init__`, qui exige une connexion OAuth.
 """
 
+import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import tidalapi
+from doubles import make_client as build_client
 
 import apple2tidal as a2t
 
@@ -17,19 +19,11 @@ import apple2tidal as a2t
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
     """Les backoffs sont reels dans le code : on les neutralise pour garder la suite rapide."""
-    monkeypatch.setattr(a2t.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
 
 
 def make_client(dry_run=False, workers=2) -> a2t.Tidal:
-    t = a2t.Tidal.__new__(a2t.Tidal)
-    t.dry = dry_run
-    t.delay = 0.0
-    t.workers = workers
-    t._lock = __import__("threading").Lock()
-    t._pause_until = 0.0
-    t.session = MagicMock()
-    t.session.user.favorites = MagicMock()
-    return t
+    return build_client(dry_run=dry_run, workers=workers)
 
 
 def own_playlist(pid, name, num_tracks=10, own=True):
