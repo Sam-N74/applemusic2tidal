@@ -23,5 +23,9 @@ venv/
 env/
 .env
 
+# Artefacts de construction du paquet
+build/
+*.egg-info/
+
 # Suite de tests : locale, hors du depot
 tests/

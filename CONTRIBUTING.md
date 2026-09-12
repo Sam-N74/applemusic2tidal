@@ -9,6 +9,26 @@ pip install -r requirements.txt
 pip install ruff
 ```
 
+Run the tool from the checkout with `python -m apple2tidal …`.
+
+## Layout
+
+`apple2tidal/` is a package. The engine is written once; a service is an adapter.
+
+| Module | Role |
+|---|---|
+| `model.py` | `Track`, `Playlist`, `Album`, `Candidate`, `Match`: no service identifier anywhere |
+| `matching.py` | scoring, `match()`, when the cache is enough |
+| `albums.py` | album grouping and resolution (UPC first, matched tracks otherwise) |
+| `engine.py` | `transfer()`: match, report, then write playlists, favorites, albums |
+| `state.py` | `.apple2tidal/`: one `Store` per destination service, cache keyed by ISRC or normalized artist\|title |
+| `providers/` | the `Source` and `Destination` protocols, plus one module per service (`apple.py`, `tidal.py`) |
+| `cli.py` | argparse, confirmations, `--wipe` and `--reset` |
+
+Adding a service means one file in `providers/` implementing `Source`, `Destination`
+or both. If it needs a change in `engine.py` or `matching.py`, the contract is
+wrong: fix the contract, not the caller.
+
 ## The two commands
 
 ```bash
@@ -48,5 +68,6 @@ against something you can afford to lose.
 - Never commit `.apple2tidal/`, `apple_library.json`, `*.xml` or `backup_*.json`.
   They hold OAuth tokens and a full listening history. `.gitignore` covers them —
   re-check it after any directory move.
-- `tidalapi` is unofficial. Keep every call to it inside the `Tidal` class so a
-  breaking change upstream stays a one-file problem.
+- `tidalapi` is unofficial. Keep every call to it inside `apple2tidal/providers/tidal.py`
+  so a breaking change upstream stays a one-file problem. The engine only ever
+  sees `Candidate` objects and opaque identifiers.

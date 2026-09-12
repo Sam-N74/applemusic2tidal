@@ -34,8 +34,10 @@ Pour déplacer 200 titres une fois, Soundiiz est plus rapide. Pour déplacer une
 ## 1. Installer
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
+
+Cela installe la commande `apple2tidal`. Sans installation, `python -m apple2tidal` depuis le dépôt fait la même chose une fois `pip install -r requirements.txt` passé.
 
 ## 2. Exporter la bibliothèque Apple Music
 
@@ -56,17 +58,17 @@ Le JSON contient titres, playlists, titres aimés, albums, ainsi que l'ISRC de c
 
 ```bash
 # Première étape conseillée : matching seul, aucune écriture sur TIDAL
-python apple2tidal.py apple_library.json --dry-run
+apple2tidal apple_library.json --dry-run
 
 # Puis, au choix :
-python apple2tidal.py apple_library.json --playlists              # recrée les playlists
-python apple2tidal.py apple_library.json --favorites              # toute la bibliothèque → titres favoris
-python apple2tidal.py apple_library.json --loved                  # seulement les titres « aimés » → favoris
-python apple2tidal.py apple_library.json --albums                 # albums complets → albums favoris
-python apple2tidal.py apple_library.json --all                    # tout
+apple2tidal apple_library.json --playlists                        # recrée les playlists
+apple2tidal apple_library.json --favorites                        # toute la bibliothèque → titres favoris
+apple2tidal apple_library.json --loved                            # seulement les titres « aimés » → favoris
+apple2tidal apple_library.json --albums                           # albums complets → albums favoris
+apple2tidal apple_library.json --all                              # tout
 ```
 
-Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : il suffit de l'ouvrir et de se connecter, le script poursuit seul. La session est enregistrée dans `.apple2tidal/tidal_session.json`.
+Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : il suffit de l'ouvrir et de se connecter, le script poursuit seul. La session est enregistrée dans `.apple2tidal/tidal/session.json`.
 
 ## Options
 
@@ -87,8 +89,8 @@ Au premier lancement, un lien `link.tidal.com/XXXXX` s'affiche : il suffit de l'
 ## Vider le compte TIDAL sans rien réimporter (`--wipe`)
 
 ```bash
-python apple2tidal.py --wipe --dry-run   # liste ce qui serait supprimé
-python apple2tidal.py --wipe             # demande confirmation, supprime, s'arrête
+apple2tidal --wipe --dry-run             # liste ce qui serait supprimé
+apple2tidal --wipe                       # demande confirmation, supprime, s'arrête
 ```
 
 Supprime les playlists, les titres favoris, les albums favoris, les artistes favoris, et se désabonne des playlists suivies (`--keep-followed` pour les conserver). Aucun import n'est effectué ensuite : le compte reste vide.
@@ -100,8 +102,8 @@ Le fichier d'export n'est pas nécessaire. Une sauvegarde JSON est écrite avant
 ## Repartir de zéro (`--reset`)
 
 ```bash
-python apple2tidal.py apple_library.json --all --reset --dry-run   # montre ce qui serait supprimé
-python apple2tidal.py apple_library.json --all --reset             # confirmation, puis suppression + réimport
+apple2tidal apple_library.json --all --reset --dry-run             # montre ce qui serait supprimé
+apple2tidal apple_library.json --all --reset                       # confirmation, puis suppression + réimport
 ```
 
 Ce que `--reset` supprime dépend des actions demandées :
@@ -111,7 +113,7 @@ Ce que `--reset` supprime dépend des actions demandées :
 
 Par défaut (`--reset-scope imported`), seules les playlists portant le nom d'une playlist de l'export Apple sont supprimées ; celles créées directement sur TIDAL sont préservées. `--reset-scope all` supprime toutes les playlists du compte.
 
-Avant toute suppression, l'état du compte (playlists avec leurs titres, favoris, albums) est écrit dans `.apple2tidal/backup_AAAAMMJJ_HHMMSS.json`. Il s'agit d'une sauvegarde lisible, pas d'un bouton « annuler » : TIDAL n'a pas de corbeille, une playlist supprimée l'est définitivement.
+Avant toute suppression, l'état du compte (playlists avec leurs titres, favoris, albums) est écrit dans `.apple2tidal/tidal/backup_AAAAMMJJ_HHMMSS.json`. Il s'agit d'une sauvegarde lisible, pas d'un bouton « annuler » : TIDAL n'a pas de corbeille, une playlist supprimée l'est définitivement.
 
 ## Fonctionnement du matching
 
@@ -119,7 +121,7 @@ Un titre disposant d'un ISRC (export JSON) est résolu directement. Sinon, il es
 - titre 55 %, artiste 35 %, album 10 % (approché, insensible aux accents et à la casse, suffixes « feat. », « Remastered » et assimilés retirés)
 - pénalité si les durées diffèrent de plus de 5 s, forte pénalité au-delà de 20 s
 
-Les résultats sont mis en cache dans `.apple2tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Chaque entrée retient le seuil sous lequel elle a été décidée, si bien que changer `--threshold` révalue ce qui doit l'être. `--albums` y met aussi en cache ses recherches par UPC : la deuxième exécution ne coûte plus une seule requête. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
+Les résultats sont mis en cache dans `.apple2tidal/tidal/matches.json` : une exécution interrompue reprend où elle s'était arrêtée. Chaque entrée retient le seuil sous lequel elle a été décidée, si bien que changer `--threshold` révalue ce qui doit l'être. `--albums` y met aussi en cache ses recherches par UPC : la deuxième exécution ne coûte plus une seule requête. Les titres non trouvés sont listés dans `.apple2tidal/unmatched.csv`, avec les playlists concernées, pour un traitement manuel.
 
 ## Vitesse
 
@@ -127,7 +129,7 @@ Trois facteurs entrent en jeu :
 
 - **Parallélisme** : `--workers 8` par défaut. `--workers 16` est environ deux fois plus rapide ; si des messages `[rate-limit] pause Xs` apparaissent, redescendre à 4-6 (ou ajouter `--delay 0.2`), faute de quoi le temps passé en backoff dépasse le gain.
 - **Déduplication** : un titre présent dans cinq playlists ne coûte qu'une recherche. Deux entrées sont considérées identiques si elles partagent un ISRC ou, à défaut, un artiste et un titre normalisés.
-- **Cache** : `.apple2tidal/matches.json`. Une seconde exécution ne relance aucune recherche. Ce fichier ne doit pas être supprimé.
+- **Cache** : `.apple2tidal/tidal/matches.json`. Une seconde exécution ne relance aucune recherche. Ce fichier ne doit pas être supprimé.
 
 Côté écriture, les titres déjà en favoris sont détectés et ignorés, et les suppressions de `--reset` sont parallélisées.
 
@@ -137,10 +139,10 @@ Le dépôt ne contient que du code, aucun secret. Les fichiers ci-dessous sont t
 
 | Fichier | Raison |
 |---|---|
-| `.apple2tidal/tidal_session.json` | Jetons OAuth TIDAL. Quiconque les obtient accède au compte sans mot de passe. |
-| `.apple2tidal/backup_*.json` | Copie complète du contenu du compte TIDAL. |
+| `.apple2tidal/tidal/session.json` | Jetons OAuth TIDAL. Quiconque les obtient accède au compte sans mot de passe. |
+| `.apple2tidal/tidal/backup_*.json` | Copie complète du contenu du compte TIDAL. |
 | `apple_library.json`, `*.xml` | Bibliothèque Apple entière (titres, playlists, ISRC). |
-| `.apple2tidal/matches.json`, `unmatched.csv` | Historique d'écoute en clair. |
+| `.apple2tidal/tidal/matches.json`, `unmatched.csv` | Historique d'écoute en clair. |
 
 Si l'un d'eux a déjà été committé, `git rm --cached` ne suffit pas : le fichier reste dans l'historique. Il faut réécrire l'historique (`git filter-repo`) **et** révoquer la session TIDAL depuis les paramètres du compte.
 

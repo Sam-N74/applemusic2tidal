@@ -34,8 +34,10 @@ Moving 200 tracks once, Soundiiz is faster. Moving a library you care about, or 
 ## 1. Install
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
+
+This gives you the `apple2tidal` command. Without installing, `python -m apple2tidal` from the repository works the same once `pip install -r requirements.txt` has run.
 
 ## 2. Export the Apple Music library
 
@@ -56,17 +58,17 @@ The JSON contains tracks, playlists, loved tracks, albums, and the ISRC of every
 
 ```bash
 # Recommended first step: matching only, nothing is written to TIDAL
-python apple2tidal.py apple_library.json --dry-run
+apple2tidal apple_library.json --dry-run
 
 # Then, as needed:
-python apple2tidal.py apple_library.json --playlists              # recreate playlists
-python apple2tidal.py apple_library.json --favorites              # whole library → favorite tracks
-python apple2tidal.py apple_library.json --loved                  # only Apple "loved" tracks → favorites
-python apple2tidal.py apple_library.json --albums                 # complete albums → favorite albums
-python apple2tidal.py apple_library.json --all                    # everything
+apple2tidal apple_library.json --playlists                        # recreate playlists
+apple2tidal apple_library.json --favorites                        # whole library → favorite tracks
+apple2tidal apple_library.json --loved                            # only Apple "loved" tracks → favorites
+apple2tidal apple_library.json --albums                           # complete albums → favorite albums
+apple2tidal apple_library.json --all                              # everything
 ```
 
-On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the script continues on its own. The session is stored in `.apple2tidal/tidal_session.json`.
+On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the script continues on its own. The session is stored in `.apple2tidal/tidal/session.json`.
 
 ## Options
 
@@ -87,8 +89,8 @@ On first run a `link.tidal.com/XXXXX` link is printed: open it, sign in, and the
 ## Emptying the TIDAL account without reimporting (`--wipe`)
 
 ```bash
-python apple2tidal.py --wipe --dry-run   # list what would be deleted
-python apple2tidal.py --wipe             # ask for confirmation, delete, stop
+apple2tidal --wipe --dry-run             # list what would be deleted
+apple2tidal --wipe                       # ask for confirmation, delete, stop
 ```
 
 Deletes playlists, favorite tracks, favorite albums and favorite artists, and unfollows followed playlists (`--keep-followed` preserves them). Nothing is imported afterwards: the account stays empty.
@@ -100,8 +102,8 @@ The export file is not required. A JSON backup is written before any deletion, a
 ## Starting over (`--reset`)
 
 ```bash
-python apple2tidal.py apple_library.json --all --reset --dry-run   # show what would be deleted
-python apple2tidal.py apple_library.json --all --reset             # confirm, then delete + reimport
+apple2tidal apple_library.json --all --reset --dry-run             # show what would be deleted
+apple2tidal apple_library.json --all --reset                       # confirm, then delete + reimport
 ```
 
 What `--reset` deletes depends on the requested actions:
@@ -111,7 +113,7 @@ What `--reset` deletes depends on the requested actions:
 
 By default (`--reset-scope imported`), only playlists whose name matches a playlist in the Apple export are deleted, so playlists created directly on TIDAL survive. `--reset-scope all` deletes every owned playlist.
 
-Before any deletion, the state of the account (playlists with their tracks, favorites, albums) is written to `.apple2tidal/backup_YYYYMMDD_HHMMSS.json`. It is a readable backup, not an undo button: TIDAL has no trash, and a deleted playlist is gone for good.
+Before any deletion, the state of the account (playlists with their tracks, favorites, albums) is written to `.apple2tidal/tidal/backup_YYYYMMDD_HHMMSS.json`. It is a readable backup, not an undo button: TIDAL has no trash, and a deleted playlist is gone for good.
 
 ## How matching works
 
@@ -119,7 +121,7 @@ A track with an ISRC (JSON export) is resolved directly. Otherwise it is searche
 - title 55%, artist 35%, album 10% (fuzzy, accent- and case-insensitive, with `feat.`, `Remastered` and similar suffixes stripped)
 - a penalty when durations differ by more than 5 s, a heavy penalty beyond 20 s
 
-Results are cached in `.apple2tidal/matches.json`, so an interrupted run resumes where it stopped. Each entry records the threshold it was decided under, so changing `--threshold` re-evaluates what it should. `--albums` caches its UPC lookups there too, so a second run costs no request at all. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
+Results are cached in `.apple2tidal/tidal/matches.json`, so an interrupted run resumes where it stopped. Each entry records the threshold it was decided under, so changing `--threshold` re-evaluates what it should. `--albums` caches its UPC lookups there too, so a second run costs no request at all. Unmatched tracks are listed in `.apple2tidal/unmatched.csv` together with the playlists they belong to, for manual handling.
 
 ## Speed
 
@@ -127,7 +129,7 @@ Three factors matter:
 
 - **Parallelism**: `--workers 8` by default. `--workers 16` is roughly twice as fast; if `[rate-limit] pause Xs` messages appear, go back down to 4–6 (or add `--delay 0.2`), otherwise more time is spent backing off than requesting.
 - **Deduplication**: a track present in five playlists costs a single lookup. Two entries count as identical when they share an ISRC, or failing that a normalized artist and title.
-- **Cache**: `.apple2tidal/matches.json`. A second run performs no search at all. Do not delete it.
+- **Cache**: `.apple2tidal/tidal/matches.json`. A second run performs no search at all. Do not delete it.
 
 On the write side, tracks already in favorites are detected and skipped, and `--reset` deletions run in parallel.
 
@@ -137,10 +139,10 @@ The repository holds code only, no secrets. The files below are your library in 
 
 | File | Why |
 |---|---|
-| `.apple2tidal/tidal_session.json` | TIDAL OAuth tokens. Anyone who obtains it gets account access without a password. |
-| `.apple2tidal/backup_*.json` | A full dump of the TIDAL account. |
+| `.apple2tidal/tidal/session.json` | TIDAL OAuth tokens. Anyone who obtains it gets account access without a password. |
+| `.apple2tidal/tidal/backup_*.json` | A full dump of the TIDAL account. |
 | `apple_library.json`, `*.xml` | The entire Apple library (tracks, playlists, ISRCs). |
-| `.apple2tidal/matches.json`, `unmatched.csv` | Listening history in plain text. |
+| `.apple2tidal/tidal/matches.json`, `unmatched.csv` | Listening history in plain text. |
 
 If one of them has already been committed, `git rm --cached` is not enough: the file remains in history. The history has to be rewritten (`git filter-repo`) **and** the TIDAL session revoked from the account settings.
 

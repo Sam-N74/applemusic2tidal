@@ -124,6 +124,7 @@ EN: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} unreadable ({error}), starting from scratch",
     "cache.migrated": "[cache] {n} entries migrated to the new format ({unique} unique)",
+    "state.moved": "[state] {n} file(s) moved to {path}",
     "cache.threshold_changed": "[cache] {n} cached entries no longer agree with threshold "
                                "{threshold:.0f} — searching again",
 
@@ -269,6 +270,7 @@ FR: dict[str, str] = {
     # -------------------------------------------------------------------- cache
     "cache.unreadable": "[cache] {path} illisible ({error}), on repart de zéro",
     "cache.migrated": "[cache] {n} entrées migrées vers le nouveau format ({unique} uniques)",
+    "state.moved": "[état] {n} fichier(s) déplacé(s) vers {path}",
     "cache.threshold_changed": "[cache] {n} entrées en cache ne s'accordent plus avec le seuil "
                                "{threshold:.0f} — nouvelle recherche",
 
