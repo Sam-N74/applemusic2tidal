@@ -102,6 +102,19 @@ class ApplePlaylist:
 
 
 @dataclass
+class AppleAlbum:
+    """Album declare par l'export. L'UPC identifie la sortie, comme l'ISRC un titre."""
+    name: str
+    artist: str
+    track_count: int = 0
+    upc: str | None = None
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return (norm(self.artist), norm(self.name))
+
+
+@dataclass
 class Match:
     tidal_id: int | None
     score: float
@@ -126,7 +139,10 @@ def parse_json(path: Path) -> tuple[dict[str, AppleTrack], list[ApplePlaylist]]:
     def mk(s: dict) -> AppleTrack:
         return AppleTrack(
             id=str(s["id"]), name=s.get("name", ""), artist=s.get("artist", ""),
-            album=s.get("album", ""), album_artist=s.get("artist", ""),
+            album=s.get("album", ""),
+            # album_artist vient de l'album parent ; les exports d'avant ce champ
+            # retombent sur l'artiste du titre, comme avant.
+            album_artist=s.get("album_artist") or s.get("artist", ""),
             duration_ms=int(s.get("duration_ms") or 0), loved=bool(s.get("loved")),
             year=int(s["year"]) if s.get("year") else None, isrc=s.get("isrc") or None,
         )
@@ -143,6 +159,24 @@ def parse_json(path: Path) -> tuple[dict[str, AppleTrack], list[ApplePlaylist]]:
         if ids:
             playlists.append(ApplePlaylist(name=p["name"], track_ids=ids, smart=False))
     return tracks, playlists
+
+
+def parse_albums(path: Path) -> list[AppleAlbum]:
+    """Albums declares par l'export JSON, avec leur UPC.
+
+    L'export XML de l'app Musique ne liste pas les albums : on renvoie une liste
+    vide, et `--albums` retombe sur `guess_albums`.
+    """
+    if path.suffix.lower() != ".json":
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        AppleAlbum(name=al["name"], artist=al.get("artist") or "",
+                   track_count=int(al.get("track_count") or 0),
+                   upc=str(al["upc"]) if al.get("upc") else None)
+        for al in data.get("albums", [])
+        if al.get("name")
+    ]
 
 
 def parse_xml(path: Path) -> tuple[dict[str, AppleTrack], list[ApplePlaylist]]:
@@ -246,6 +280,73 @@ def dedup_key(a: AppleTrack) -> str:
 
 
 # --------------------------------------------------------------------------- #
+#  Albums
+# --------------------------------------------------------------------------- #
+def tracks_by_album(tracks: dict[str, AppleTrack]) -> dict[tuple[str, str], list[AppleTrack]]:
+    """Regroupe les titres par (artiste de l'album, album). L'artiste de l'album,
+    pas celui du titre : sinon une compilation eclate en autant d'albums."""
+    out: dict[tuple[str, str], list[AppleTrack]] = defaultdict(list)
+    for a in tracks.values():
+        if a.album:
+            out[(norm(a.album_artist), norm(a.album))].append(a)
+    return out
+
+
+def _majority_album_id(ts: list[AppleTrack], cache: dict) -> int | None:
+    """Album TIDAL majoritaire parmi les titres deja matches, ou None si egalite."""
+    ids = [x for x in (cache.get(dedup_key(a), {}).get("album_id") for a in ts) if x]
+    if not ids:
+        return None
+    top = max(set(ids), key=ids.count)
+    return top if ids.count(top) * 2 > len(ids) else None
+
+
+def resolve_albums(declared: list[AppleAlbum], tracks: dict[str, AppleTrack],
+                   cache: dict, upc_lookup) -> list[tuple[AppleAlbum, int, str]]:
+    """Associe chaque album declare par l'export a un album TIDAL.
+
+    Deux chemins : l'UPC quand l'export le fournit — exact, et il retrouve aussi
+    les albums dont on ne possede qu'une partie des titres — sinon l'album TIDAL
+    majoritaire parmi les titres matches. `upc_lookup` est injecte pour que cette
+    fonction reste testable sans compte TIDAL.
+
+    Renvoie [(album, id TIDAL, "upc" | "tracks")].
+    """
+    grouped = tracks_by_album(tracks)
+    out: list[tuple[AppleAlbum, int, str]] = []
+    seen: set[int] = set()
+    for al in declared:
+        tidal_id, source = (upc_lookup(al.upc) if al.upc else None), "upc"
+        if tidal_id is None:
+            tidal_id, source = _majority_album_id(grouped.get(al.key, []), cache), "tracks"
+        if tidal_id and tidal_id not in seen:
+            seen.add(tidal_id)
+            out.append((al, tidal_id, source))
+    return out
+
+
+def guess_albums(tracks: dict[str, AppleTrack],
+                 cache: dict) -> list[tuple[AppleAlbum, int, str]]:
+    """Repli pour l'export XML, qui ne declare aucun album : on les devine a
+    partir des titres, avec le meme garde-fou qu'avant — au moins 3 titres dans
+    la bibliotheque et 80 % d'entre eux matches."""
+    out: list[tuple[AppleAlbum, int, str]] = []
+    seen: set[int] = set()
+    for ts in tracks_by_album(tracks).values():
+        if len(ts) < 3:
+            continue
+        matched = [a for a in ts if cache.get(dedup_key(a), {}).get("album_id")]
+        if len(matched) / len(ts) < 0.8:
+            continue
+        tidal_id = _majority_album_id(matched, cache)
+        if tidal_id and tidal_id not in seen:
+            seen.add(tidal_id)
+            out.append((AppleAlbum(name=ts[0].album, artist=ts[0].album_artist,
+                                   track_count=len(ts)), tidal_id, "tracks"))
+    return out
+
+
+# --------------------------------------------------------------------------- #
 #  Client TIDAL
 # --------------------------------------------------------------------------- #
 class Tidal:
@@ -333,6 +434,14 @@ class Tidal:
             return Match(cand.id, round(s, 1), cand.name, cand.artist.name if cand.artist else "",
                          cand.album.id if cand.album else None)
         return Match(None, round(best[0], 1) if best else 0.0)
+
+    def album_by_upc(self, upc: str) -> int | None:
+        """Album TIDAL portant cet UPC. tidalapi leve quand il ne trouve rien."""
+        try:
+            albums = self._call(self.session.get_albums_by_barcode, upc)
+        except Exception:  # noqa: BLE001
+            return None
+        return albums[0].id if albums else None
 
     def _call_ok(self, fn, *a, **kw) -> bool:
         """Comme _call, mais traite un retour False comme un échec (tidalapi
@@ -830,24 +939,17 @@ def main():
     # ---- Albums
     if args.albums:
         print("\n" + t("section.albums"))
-        by_album: dict[tuple[str, str], list[AppleTrack]] = defaultdict(list)
-        for a in tracks.values():
-            if a.album:
-                by_album[(norm(a.album_artist), norm(a.album))].append(a)
-        album_ids: list[int] = []
-        for (_, _), ts in by_album.items():
-            if len(ts) < 3:
-                continue  # singles / EP partiels : on laisse
-            tidal_albums = [cache.get(dedup_key(a), {}).get("album_id")
-                            for a in ts if tidal_id(a.id)]
-            tidal_albums = [x for x in tidal_albums if x]
-            if len(tidal_albums) / len(ts) >= 0.8:
-                # album TIDAL majoritaire parmi les matchs
-                top = max(set(tidal_albums), key=tidal_albums.count)
-                if top not in album_ids:
-                    album_ids.append(top)
-        print(t("albums.detected", n=len(album_ids)))
-        tidal.favorite_albums(album_ids)
+        declared = parse_albums(args.library)
+        found = (resolve_albums(declared, tracks, cache, tidal.album_by_upc)
+                 if declared else guess_albums(tracks, cache))
+        if not declared:
+            print(t("albums.no_declared_list"))
+        for al, _, source in found:
+            print(t("albums.line", artist=al.artist, name=al.name,
+                    source=t("albums.source_upc") if source == "upc"
+                    else t("albums.source_tracks")))
+        print(t("albums.detected", n=len(found)))
+        tidal.favorite_albums([tid for _, tid, _ in found])
 
     print("\n" + t("main.done"))
 
