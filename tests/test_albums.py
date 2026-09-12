@@ -5,6 +5,12 @@ partir des titres est un repli, pas le chemin principal.
 """
 
 import json
+import threading
+import time
+from types import SimpleNamespace
+
+import pytest
+import tidalapi
 
 import apple2tidal as a2t
 
@@ -149,3 +155,77 @@ def test_guess_albums_ignores_a_group_matched_below_eighty_percent(mk_track):
                                album="Album") for i in range(1, 6)}
     cache = cached(tracks["1"], album_id=99)   # 1 titre sur 5
     assert a2t.guess_albums(tracks, cache) == []
+
+
+# ------------------------------------------------------- recherche par UPC
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch):
+    """Les pauses de _call sont reelles : sans ca, ce fichier durerait des secondes."""
+    monkeypatch.setattr(a2t.time, "sleep", lambda *_: None)
+
+
+def test_album_by_upc_returns_the_first_album(tidal_client):
+    t = tidal_client()
+    t.session.get_albums_by_barcode.return_value = [SimpleNamespace(id=404)]
+    assert t.album_by_upc("886972394725") == 404
+
+
+@pytest.mark.parametrize("miss", [tidalapi.exceptions.ObjectNotFound,
+                                  tidalapi.exceptions.InvalidUPC])
+def test_a_missing_upc_costs_one_call(tidal_client, miss):
+    """Absent du catalogue n'est pas en panne. Le retenter cinq fois coutait
+    cinq requetes et quatre secondes par album, sur des centaines d'albums."""
+    t = tidal_client()
+    calls = []
+
+    def lookup(upc):
+        calls.append(upc)
+        raise miss
+
+    t.session.get_albums_by_barcode = lookup
+    assert t.album_by_upc("000") is None
+    assert len(calls) == 1
+
+
+def test_a_network_error_is_still_retried(tidal_client):
+    """Le garde-fou ne doit pas avaler les vraies pannes : elles se retentent."""
+    t = tidal_client()
+    calls = []
+
+    def lookup(upc):
+        calls.append(upc)
+        raise RuntimeError("connection reset")
+
+    t.session.get_albums_by_barcode = lookup
+    assert t.album_by_upc("000") is None
+    assert len(calls) > 1
+
+
+def test_resolve_albums_looks_up_each_upc_once():
+    """Deux editions d'un meme album partagent leur UPC : une seule requete."""
+    declared = [a2t.AppleAlbum(name="Album", artist="A", upc="1"),
+                a2t.AppleAlbum(name="Album", artist="A", upc="1"),
+                a2t.AppleAlbum(name="Autre", artist="B", upc="2")]
+    calls = []
+    a2t.resolve_albums(declared, {}, {}, lambda upc: calls.append(upc) or 1)
+    assert sorted(calls) == ["1", "2"]
+
+
+def test_resolve_albums_searches_the_upcs_in_parallel():
+    """497 UPC en serie, c'est plusieurs minutes d'attente muette."""
+    declared = [a2t.AppleAlbum(name=f"A{i}", artist="A", upc=str(i)) for i in range(8)]
+    live, peak = [], [0]
+    lock = threading.Lock()
+
+    def lookup(upc):
+        with lock:
+            live.append(upc)
+            peak[0] = max(peak[0], len(live))
+        time.sleep(0.02)
+        with lock:
+            live.remove(upc)
+        return int(upc) + 1
+
+    found = a2t.resolve_albums(declared, {}, {}, lookup, workers=4)
+    assert peak[0] > 1
+    assert len(found) == 8

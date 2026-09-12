@@ -1,6 +1,8 @@
 """Fixtures partagees. Les tests n'ouvrent jamais le reseau ni un vrai compte TIDAL."""
 
+import threading
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -53,3 +55,22 @@ def state_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(a2t, "CACHE_FILE", d / "matches.json")
     monkeypatch.setattr(a2t, "REPORT_FILE", d / "unmatched.csv")
     return d
+
+
+@pytest.fixture
+def tidal_client():
+    """Fabrique un client Tidal sans passer par __init__, qui exige un OAuth.
+
+    tests/test_destructive.py a son propre `make_client`, identique : les deux
+    convergeront quand le Lot 6 decoupera le module.
+    """
+    def build(dry_run=False, workers=2):
+        c = a2t.Tidal.__new__(a2t.Tidal)
+        c.dry = dry_run
+        c.delay = 0.0
+        c.workers = workers
+        c._lock = threading.Lock()
+        c._pause_until = 0.0
+        c.session = MagicMock()
+        return c
+    return build
