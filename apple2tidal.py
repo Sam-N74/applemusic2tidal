@@ -139,7 +139,10 @@ def parse_json(path: Path) -> tuple[dict[str, AppleTrack], list[ApplePlaylist]]:
     def mk(s: dict) -> AppleTrack:
         return AppleTrack(
             id=str(s["id"]), name=s.get("name", ""), artist=s.get("artist", ""),
-            album=s.get("album", ""), album_artist=s.get("artist", ""),
+            album=s.get("album", ""),
+            # album_artist vient de l'album parent ; les exports d'avant ce champ
+            # retombent sur l'artiste du titre, comme avant.
+            album_artist=s.get("album_artist") or s.get("artist", ""),
             duration_ms=int(s.get("duration_ms") or 0), loved=bool(s.get("loved")),
             year=int(s["year"]) if s.get("year") else None, isrc=s.get("isrc") or None,
         )

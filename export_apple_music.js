@@ -56,12 +56,34 @@
       name: a.name || "",
       artist: a.artistName || "",
       album: a.albumName || "",
+      album_artist: albumArtist.get((a.albumName || "").trim().toLowerCase()) || a.artistName || "",
       duration_ms: a.durationInMillis || cat.durationInMillis || 0,
       isrc: cat.isrc || null,
       catalog_id: a.playParams?.catalogId || s.relationships?.catalog?.data?.[0]?.id || null,
       year: (cat.releaseDate || "").slice(0, 4) || null,
     };
   };
+
+  // ---------- Albums de la bibliothèque ----------
+  // Lus avant les titres : c'est l'album qui porte l'artiste de l'album, et un
+  // titre ne le donne pas. Sans lui, une compilation se découpe en autant
+  // d'albums qu'elle compte d'artistes.
+  log("albums…");
+  const albums = (await all("/v1/me/library/albums", { include: "catalog" })).map(al => {
+    const a = al.attributes || {}, cat = al.relationships?.catalog?.data?.[0]?.attributes || {};
+    return { id: al.id, name: a.name, artist: a.artistName, track_count: a.trackCount, upc: cat.upc || null, catalog_id: al.relationships?.catalog?.data?.[0]?.id || null };
+  });
+  log(albums.length, "albums");
+
+  // nom d'album -> artiste de l'album. Deux albums homonymes d'artistes
+  // différents rendent le nom ambigu : on note null plutôt que de choisir.
+  const albumArtist = new Map();
+  for (const al of albums) {
+    if (!al.name || !al.artist) continue;
+    const k = al.name.trim().toLowerCase();
+    if (!albumArtist.has(k)) albumArtist.set(k, al.artist);
+    else if (albumArtist.get(k) !== al.artist) albumArtist.set(k, null);
+  }
 
   // ---------- Bibliothèque ----------
   log("titres…");
@@ -93,13 +115,6 @@
     playlists.push({ id: p.id, name: a.name, editable: a.canEdit ?? true, description: a.description?.standard || "", tracks });
     log(`  ${a.name} (${tracks.length})`);
   }
-
-  // ---------- Albums de la bibliothèque ----------
-  log("albums…");
-  const albums = (await all("/v1/me/library/albums", { include: "catalog" })).map(al => {
-    const a = al.attributes || {}, cat = al.relationships?.catalog?.data?.[0]?.attributes || {};
-    return { id: al.id, name: a.name, artist: a.artistName, track_count: a.trackCount, upc: cat.upc || null, catalog_id: al.relationships?.catalog?.data?.[0]?.id || null };
-  });
 
   const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), songs, playlists, albums }, null, 1)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
