@@ -128,3 +128,47 @@ def test_entry_from_an_older_cache_is_judged_on_its_score():
     """Les caches d'avant ce champ n'ont pas de threshold : le score suffit a decider."""
     assert a2t.needs_match({"tidal_id": 1, "score": 81.0}, threshold=90.0, rematch=False) is True
     assert a2t.needs_match({"tidal_id": 1, "score": 95.0}, threshold=90.0, rematch=False) is False
+
+
+# ------------------------------------------------------------- cache des UPC
+def test_a_resolved_upc_is_remembered():
+    """Une bibliotheque compte des centaines d'UPC et le catalogue TIDAL ne
+    bouge pas d'une execution a l'autre : la deuxieme passe doit etre gratuite."""
+    cache, calls = {}, []
+    lookup = a2t.cached_upc_lookup(cache, lambda upc: calls.append(upc) or 42)
+    assert lookup("886972394725") == 42
+    assert lookup("886972394725") == 42
+    assert calls == ["886972394725"]
+
+
+def test_a_missing_upc_is_remembered_too():
+    """C'est l'absence qui coute le plus cher : c'est elle qu'il faut memoriser."""
+    cache, calls = {}, []
+    lookup = a2t.cached_upc_lookup(cache, lambda upc: calls.append(upc) or None)
+    assert lookup("000") is None
+    assert lookup("000") is None
+    assert calls == ["000"]
+
+
+def test_the_upc_cache_has_its_own_key_prefix():
+    cache = {}
+    a2t.cached_upc_lookup(cache, lambda upc: 42)("886972394725")
+    assert cache == {"upc:886972394725": {"album_id": 42}}
+
+
+def test_rematch_retries_a_remembered_miss():
+    """Un album ajoute au catalogue depuis la derniere passe doit pouvoir sortir."""
+    cache = {"upc:000": {"album_id": None}, "upc:111": {"album_id": 7}}
+    calls = []
+    lookup = a2t.cached_upc_lookup(cache, lambda upc: calls.append(upc) or 9,
+                                   rematch=True)
+    assert lookup("000") == 9
+    assert lookup("111") == 7      # un succes reste acquis
+    assert calls == ["000"]
+
+
+def test_migrate_cache_leaves_a_upc_only_cache_alone():
+    """Sans ce prefixe, un cache ne contenant que des UPC passerait pour un
+    vieux cache indexe par ID Apple, et serait vide de ses entrees."""
+    cache = {"upc:886972394725": {"album_id": 42}}
+    assert a2t.migrate_cache(cache, {}) is cache
