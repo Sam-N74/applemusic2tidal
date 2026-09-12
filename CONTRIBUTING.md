@@ -9,6 +9,26 @@ pip install -r requirements.txt
 pip install pytest ruff
 ```
 
+Run the tool from the checkout with `python -m apple2tidal …`.
+
+## Layout
+
+`apple2tidal/` is a package. The engine is written once; a service is an adapter.
+
+| Module | Role |
+|---|---|
+| `model.py` | `Track`, `Playlist`, `Album`, `Candidate`, `Match`: no service identifier anywhere |
+| `matching.py` | scoring, `match()`, when the cache is enough |
+| `albums.py` | album grouping and resolution (UPC first, matched tracks otherwise) |
+| `engine.py` | `transfer()`: match, report, then write playlists, favorites, albums |
+| `state.py` | `.apple2tidal/`: one `Store` per destination service, cache keyed by ISRC or normalized artist\|title |
+| `providers/` | the `Source` and `Destination` protocols, plus one module per service (`apple.py`, `tidal.py`) |
+| `cli.py` | argparse, confirmations, `--wipe` and `--reset` |
+
+Adding a service means one file in `providers/` implementing `Source`, `Destination`
+or both. If it needs a change in `engine.py` or `matching.py`, the contract is
+wrong: fix the contract, not the caller.
+
 ## The three commands
 
 ```bash
@@ -41,9 +61,12 @@ first.
 | `test_destructive.py` | delete scope, retries, `verify_wipe` |
 | `test_cli.py` | argument combinations that must be refused |
 | `test_messages.py` | EN/FR parity, language resolution, the confirmation word |
+| `test_transfer.py` | a full transfer against an in-memory destination: the proof of the provider contract |
+| `test_state.py` | the per-service state directory and the move from the old flat layout |
 
-No test may reach the network or a real TIDAL account. `tests/conftest.py`
-provides the doubles; anything talking to TIDAL is a `MagicMock`.
+No test may reach the network or a real TIDAL account. `tests/doubles.py`
+provides the doubles, including `MemoryDestination`; anything talking to TIDAL
+is a `MagicMock`.
 
 When a bug is reported, the first commit adds a failing test that reproduces it.
 
@@ -53,7 +76,7 @@ When a bug is reported, the first commit adds a failing test that reproduces it.
 - Any destructive operation writes a JSON backup, asks for confirmation, then
   verifies the deletion actually happened.
 - `README.md` and `README.fr.md` stay in sync; a change to one requires the other.
-- No user-facing string is written inline. It goes in `messages.py`, in **both**
+- No user-facing string is written inline. It goes in `apple2tidal/messages.py`, in **both**
   `EN` and `FR`, and is printed through `t("key", **params)`. `test_messages.py`
   fails on a key present in one dictionary and not the other, on a placeholder
   lost in translation, and on a key nothing uses any more. English is the
@@ -61,5 +84,6 @@ When a bug is reported, the first commit adds a failing test that reproduces it.
 - Never commit `.apple2tidal/`, `apple_library.json`, `*.xml` or `backup_*.json`.
   They hold OAuth tokens and a full listening history. `.gitignore` covers them —
   re-check it after any directory move.
-- `tidalapi` is unofficial. Keep every call to it inside the `Tidal` class so a
-  breaking change upstream stays a one-file problem.
+- `tidalapi` is unofficial. Keep every call to it inside `apple2tidal/providers/tidal.py`
+  so a breaking change upstream stays a one-file problem. The engine only ever
+  sees `Candidate` objects and opaque identifiers.
