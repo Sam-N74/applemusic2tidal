@@ -121,6 +121,7 @@ class Match:
     tidal_title: str = ""
     tidal_artist: str = ""
     album_id: int | None = None
+    threshold: float = 0.0   # seuil sous lequel la decision a ete prise
 
 
 # --------------------------------------------------------------------------- #
@@ -409,7 +410,7 @@ class Tidal:
             if cands:
                 cand = max(cands, key=lambda x: (score_candidate(a, x), x.popularity or 0))
                 return Match(cand.id, 100.0, cand.name, cand.artist.name if cand.artist else "",
-                             cand.album.id if cand.album else None)
+                             cand.album.id if cand.album else None, threshold)
         # 2) recherche fuzzy
         queries = [
             f"{clean_artist(a.artist)} {clean_title(a.name)}",
@@ -432,8 +433,8 @@ class Tidal:
         if best and best[0] >= threshold:
             s, cand = best
             return Match(cand.id, round(s, 1), cand.name, cand.artist.name if cand.artist else "",
-                         cand.album.id if cand.album else None)
-        return Match(None, round(best[0], 1) if best else 0.0)
+                         cand.album.id if cand.album else None, threshold)
+        return Match(None, round(best[0], 1) if best else 0.0, threshold=threshold)
 
     def album_by_upc(self, upc: str) -> int | None:
         """Album TIDAL portant cet UPC. tidalapi leve quand il ne trouve rien."""
@@ -703,6 +704,23 @@ def migrate_cache(cache: dict, tracks: dict) -> dict:
     return out
 
 
+def needs_match(entry: dict | None, threshold: float, rematch: bool) -> bool:
+    """Faut-il (re)chercher ce titre sur TIDAL ?
+
+    Une entree de cache porte une decision — accepte ou non — prise sous un seuil
+    donne. Si le seuil courant renversait cette decision, l'entree est perimee :
+    remonter --threshold doit vraiment durcir le tri, le baisser doit vraiment
+    rouvrir les titres refuses de peu. Un cache anterieur a ce champ se juge sur
+    son score, qui suffit a trancher.
+    """
+    if not entry:
+        return True
+    matched = entry.get("tidal_id") is not None
+    if rematch and not matched:
+        return True
+    return matched != (entry.get("score", 0.0) >= threshold)
+
+
 def save_cache(cache: dict):
     STATE_DIR.mkdir(exist_ok=True)
     tmp = CACHE_FILE.with_suffix(".tmp")
@@ -855,8 +873,10 @@ def main():
     groups: dict[str, AppleTrack] = {}
     for tid in needed:
         groups.setdefault(dedup_key(tracks[tid]), tracks[tid])
-    todo = [k for k in groups
-            if k not in cache or (args.rematch and cache[k].get("tidal_id") is None)]
+    todo = [k for k in groups if needs_match(cache.get(k), args.threshold, args.rematch)]
+    stale = sum(1 for k in todo if k in cache)
+    if stale:
+        print(t("cache.threshold_changed", n=stale, threshold=args.threshold))
     print(t("match.plan", needed=len(needed), groups=len(groups), todo=len(todo),
             cached=len(groups) - len(todo)))
 
