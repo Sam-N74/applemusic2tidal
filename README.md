@@ -2,9 +2,57 @@
 
 **English** · [Français](README.fr.md)
 
-Transfers playlists, library, loved tracks and albums from Apple Music to TIDAL.
+Transfers playlists, library, loved tracks and albums from Apple Music to TIDAL. It runs on your machine: your library is never uploaded anywhere, there is no limit on how many tracks you move, and every track it fails to match is written down with its score.
 
-## 1. Export the Apple Music library
+## Why this one
+
+**Nothing leaves your machine.** No account to create, no service to trust with your listening history. The tool reads the Apple export from your disk and talks to TIDAL directly from your computer. Web transfer services cannot work this way — their product *is* a server that reads your library. Soundiiz documents it plainly: library content is stored on Google Cloud servers in the United States.
+
+**No limit, in one command.** A whole library moves in a single run. On the free tiers elsewhere the same library means nine manual transfers (Soundiiz stops at 200 tracks per transfer, one at a time), or is simply out of reach (TuneMyMusic caps at 500 tracks in total, FreeYourMusic at 600 tracks and one playlist).
+
+**The transfer is verifiable.** Every track that did not make it lands in `unmatched.csv` with the best score it reached and the playlists it belonged to. The threshold is adjustable, `--dry-run` shows what would happen before anything is written, and the cache lets you replay a decision. You are not told "43 tracks not found" and left there.
+
+**And it is reversible.** `--wipe` empties the TIDAL account again: JSON backup first, confirmation, then a check that the deletion actually happened. A botched import is not a dead end.
+
+## What a real run looks like
+
+1,800 tracks, 11 playlists, 97% matched exactly. That is an actual library, not a benchmark. Most matches are exact because the browser export carries the ISRC of every track and TIDAL resolves those directly; fuzzy search only handles the remainder.
+
+The rest is written down, in `.apple2tidal/unmatched.csv`:
+
+```csv
+artist,title,album,best_score,playlists
+Artist,Title (feat. Someone) [Bonus Track],Album (Expanded Edition),71.2,Road trip; Late night
+```
+
+That row is made up — the real file is your own library, which is why none of it is reproduced here. On the run above, six tracks ended up in it: two chopped-and-screwed mixtape edits, one expanded-edition bonus version that TIDAL spells differently, and three where the best candidate scored under 70, meaning nothing close enough to accept. Each one is a single line, findable by hand in a minute.
+
+## Why not Soundiiz
+
+Soundiiz, TuneMyMusic and FreeYourMusic do several things better, and it is worth saying so:
+
+- **20+ platforms.** This tool does Apple Music → TIDAL, and nothing else.
+- **Scheduled synchronisation**, on their paid tiers. This is a one-time import: run it again and it will not redo the work, but it will not watch Apple for changes either.
+- **Zero installation.** They run in a browser tab. Here you need Python, and a console window for the export.
+
+What they cannot offer:
+
+| | apple2tidal | Soundiiz | TuneMyMusic | FreeYourMusic |
+|---|---|---|---|---|
+| Where your library goes | stays on your disk | Google Cloud servers, United States | their servers | their servers |
+| Free limit | none | 200 tracks per transfer, one at a time; albums, artists and loved tracks are premium-only | 500 tracks in total | 600 tracks, one playlist |
+| Paid tier | — | ~€39/year | ~$24/year | ~$5, then subscriptions |
+| Report of what failed | `unmatched.csv`, scored, per playlist | a count | a count | a count |
+
+If you are moving 200 tracks once, use Soundiiz — it is faster. If you are moving a library you care about, or you are leaving Apple precisely because you would rather not hand your listening history to another platform, this one was written for that.
+
+## 1. Install
+
+```bash
+pip install -r requirements.txt
+```
+
+## 2. Export the Apple Music library
 
 ### Option A — from the browser (recommended, provides ISRCs)
 
@@ -18,12 +66,6 @@ The JSON contains tracks, playlists, loved tracks, albums, and the ISRC of every
 ### Option B — from the Music app (Mac) / iTunes (Windows)
 
 **File → Library → Export Library…** → `Library.xml`. This format carries no ISRC, so matching is fuzzy only.
-
-## 2. Install
-
-```bash
-pip install -r requirements.txt
-```
 
 ## 3. Run
 
@@ -104,9 +146,9 @@ Three factors matter:
 
 On the write side, tracks already in favorites are detected and skipped, and `--reset` deletions run in parallel.
 
-## Security and privacy
+## Files that must stay local
 
-The repository contains code only, no secrets. The following files must never be committed; all of them are covered by the bundled `.gitignore`:
+Nothing is sent anywhere, but the files the tool writes are your library in plain text. The repository contains code only, no secrets, and every file below is covered by the bundled `.gitignore`:
 
 | File | Why |
 |---|---|
@@ -129,4 +171,6 @@ If one of them has already been committed, `git rm --cached` is not enough: the 
 
 ## License
 
-MIT.
+MIT. Free, and it will stay free — the "nothing leaves your machine" promise is only worth something if it still holds next year.
+
+If it saved you an afternoon, say so in an issue. That is enough.

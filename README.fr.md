@@ -2,9 +2,57 @@
 
 [English](README.md) · **Français**
 
-Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers TIDAL.
+Transfère playlists, bibliothèque, titres aimés et albums d'Apple Music vers TIDAL. Tout tourne sur ta machine : ta bibliothèque n'est envoyée nulle part, aucun plafond de titres, et chaque titre non trouvé est consigné avec son score.
 
-## 1. Exporter la bibliothèque Apple Music
+## Pourquoi celui-ci
+
+**Rien ne quitte ta machine.** Aucun compte à créer, aucun service à qui confier ton historique d'écoute. L'outil lit l'export Apple sur ton disque et parle à TIDAL directement depuis ton ordinateur. Les services de transfert en ligne ne peuvent pas fonctionner ainsi — leur produit *est* un serveur qui lit ta bibliothèque. Soundiiz le documente lui-même : le contenu des bibliothèques est stocké sur des serveurs Google Cloud aux États-Unis.
+
+**Aucune limite, en une commande.** Une bibliothèque entière passe en une seule exécution. Sur les offres gratuites d'en face, la même bibliothèque demande neuf transferts manuels (Soundiiz s'arrête à 200 titres par transfert, un à la fois), ou reste tout simplement hors de portée (TuneMyMusic plafonne à 500 titres au total, FreeYourMusic à 600 titres et une playlist).
+
+**Le transfert est vérifiable.** Chaque titre qui n'est pas passé atterrit dans `unmatched.csv`, avec le meilleur score atteint et les playlists concernées. Le seuil est réglable, `--dry-run` montre ce qui se passerait avant la moindre écriture, et le cache permet de rejouer une décision. Personne ne te dit « 43 titres non trouvés » avant de fermer la fenêtre.
+
+**Et c'est réversible.** `--wipe` revide le compte TIDAL : sauvegarde JSON d'abord, confirmation, puis vérification que la suppression a bien eu lieu. Un import raté n'est pas une impasse.
+
+## À quoi ressemble une vraie exécution
+
+1800 titres, 11 playlists, 97 % de correspondance exacte. C'est une vraie bibliothèque, pas un banc d'essai. La plupart des correspondances sont exactes parce que l'export navigateur porte l'ISRC de chaque titre, que TIDAL résout directement ; la recherche approchée ne traite que le reste.
+
+Ce reste est consigné, dans `.apple2tidal/unmatched.csv` :
+
+```csv
+artist,title,album,best_score,playlists
+Artiste,Titre (feat. Quelqu'un) [Bonus Track],Album (Expanded Edition),71.2,Road trip; Late night
+```
+
+Cette ligne est inventée — le vrai fichier, c'est ta bibliothèque, et c'est pourquoi rien n'en est reproduit ici. Sur l'exécution ci-dessus, six titres y ont atterri : deux éditions chopped and screwed de mixtape, une version bonus d'édition étendue que TIDAL orthographie autrement, et trois dont le meilleur candidat plafonne sous 70, c'est-à-dire rien d'assez proche pour être accepté. Chacun tient sur une ligne, retrouvable à la main en une minute.
+
+## Pourquoi pas Soundiiz
+
+Soundiiz, TuneMyMusic et FreeYourMusic font plusieurs choses mieux, et ça vaut la peine de le dire :
+
+- **20+ plateformes.** Cet outil fait Apple Music → TIDAL, et rien d'autre.
+- **Synchronisation planifiée**, sur leurs offres payantes. Ici c'est un import ponctuel : relancé, il ne refait pas le travail, mais il ne surveille pas non plus les changements côté Apple.
+- **Zéro installation.** Ils tournent dans un onglet. Ici il faut Python, et une console pour l'export.
+
+Ce qu'ils ne peuvent pas offrir :
+
+| | apple2tidal | Soundiiz | TuneMyMusic | FreeYourMusic |
+|---|---|---|---|---|
+| Où va ta bibliothèque | reste sur ton disque | serveurs Google Cloud, États-Unis | leurs serveurs | leurs serveurs |
+| Limite gratuite | aucune | 200 titres par transfert, un à la fois ; albums, artistes et titres aimés réservés au premium | 500 titres au total | 600 titres, une playlist |
+| Offre payante | — | ~39 €/an | ~24 $/an | ~5 $, puis abonnements |
+| Rapport de ce qui a échoué | `unmatched.csv`, scoré, par playlist | un décompte | un décompte | un décompte |
+
+Pour déplacer 200 titres une fois, autant prendre Soundiiz : c'est plus rapide. Pour déplacer une bibliothèque à laquelle tu tiens, ou si tu quittes Apple justement parce que tu préfères ne pas confier ton historique d'écoute à une autre plateforme, c'est pour ça que celui-ci existe.
+
+## 1. Installer
+
+```bash
+pip install -r requirements.txt
+```
+
+## 2. Exporter la bibliothèque Apple Music
 
 ### Option A — depuis le navigateur (recommandé, fournit les ISRC)
 
@@ -18,12 +66,6 @@ Le JSON contient titres, playlists, titres aimés, albums, ainsi que l'ISRC de c
 ### Option B — depuis l'app Musique (Mac) / iTunes (Windows)
 
 **Fichier → Bibliothèque → Exporter la bibliothèque…** → `Bibliothèque.xml`. Ce format ne contient pas d'ISRC : le matching est uniquement approché.
-
-## 2. Installer
-
-```bash
-pip install -r requirements.txt
-```
 
 ## 3. Lancer
 
@@ -104,9 +146,9 @@ Trois facteurs entrent en jeu :
 
 Côté écriture, les titres déjà en favoris sont détectés et ignorés, et les suppressions de `--reset` sont parallélisées.
 
-## Sécurité et vie privée
+## Fichiers qui doivent rester locaux
 
-Le dépôt ne contient que du code, aucun secret. Les fichiers suivants ne doivent jamais être committés ; tous sont couverts par le `.gitignore` fourni :
+Rien n'est envoyé où que ce soit, mais les fichiers que l'outil écrit sont ta bibliothèque en clair. Le dépôt ne contient que du code, aucun secret, et tous les fichiers ci-dessous sont couverts par le `.gitignore` fourni :
 
 | Fichier | Raison |
 |---|---|
@@ -129,4 +171,6 @@ Si l'un d'eux a déjà été committé, `git rm --cached` ne suffit pas : le fic
 
 ## Licence
 
-MIT.
+MIT. Gratuit, et ça le restera — la promesse « rien ne quitte ta machine » ne vaut quelque chose que si elle tient encore l'an prochain.
+
+Si l'outil t'a épargné un après-midi, dis-le dans une issue. Ça suffit.
