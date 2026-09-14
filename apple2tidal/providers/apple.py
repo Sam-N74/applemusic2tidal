@@ -14,6 +14,8 @@ SYSTEM_PLAYLIST_KEYS = {"Master", "Music", "Movies", "TV Shows", "Podcasts", "Au
 
 
 class AppleExport:
+    name = "Apple Music"
+
     def __init__(self, path: Path):
         self.path = path
 

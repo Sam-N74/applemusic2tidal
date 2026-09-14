@@ -5,7 +5,7 @@ description = "Transfers playlists, library, loved tracks and albums from Apple 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-dependencies = ["tidalapi>=0.8", "rapidfuzz>=3.0"]
+dependencies = ["tidalapi>=0.8", "rapidfuzz>=3.0", "requests>=2.31"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
@@ -35,4 +35,3 @@ ignore = [
     "E501",   # la longueur des lignes est deja cadree par line-length + format
     "B008",
 ]
-

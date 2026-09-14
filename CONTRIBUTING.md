@@ -22,12 +22,17 @@ Run the tool from the checkout with `python -m apple2tidal …`.
 | `albums.py` | album grouping and resolution (UPC first, matched tracks otherwise) |
 | `engine.py` | `transfer()`: match, report, then write playlists, favorites, albums |
 | `state.py` | `.apple2tidal/`: one `Store` per destination service, cache keyed by ISRC or normalized artist\|title |
-| `providers/` | the `Source` and `Destination` protocols, plus one module per service (`apple.py`, `tidal.py`) |
+| `providers/` | the `Source` and `Destination` protocols, plus one module per service (`apple.py`, `spotify.py`, `tidal.py`) |
 | `cli.py` | argparse, confirmations, `--wipe` and `--reset` |
 
 Adding a service means one file in `providers/` implementing `Source`, `Destination`
 or both. If it needs a change in `engine.py` or `matching.py`, the contract is
 wrong: fix the contract, not the caller.
+
+`--from` and `--to` pick the two ends (`apple` or `spotify` as a source,
+`spotify` or `tidal` as a destination). The default stays Apple Music to TIDAL.
+The match cache lives under `.apple2tidal/<destination>/` and is keyed by ISRC,
+so changing the source does not make it stale.
 
 ## The two commands
 
@@ -71,3 +76,8 @@ against something you can afford to lose.
 - `tidalapi` is unofficial. Keep every call to it inside `apple2tidal/providers/tidal.py`
   so a breaking change upstream stays a one-file problem. The engine only ever
   sees `Candidate` objects and opaque identifiers.
+- Spotify needs a client ID of your own: an app in development mode only works
+  for the five accounts its owner allows, so there is none in this repository.
+  Create one on the Spotify dashboard, register `http://127.0.0.1` (no port) as a
+  redirect URI, and set `APPLE2TIDAL_SPOTIFY_CLIENT_ID`. The OAuth flow is
+  Authorization Code with PKCE: no client secret anywhere.

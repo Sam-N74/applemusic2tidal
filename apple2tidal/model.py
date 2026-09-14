@@ -71,10 +71,13 @@ class Candidate:
 
 @dataclass
 class Match:
-    tidal_id: int | str | None
+    """Decision prise pour un titre chez la destination. Les champs ne nomment
+    aucun service : le cache qui les porte est indexe sur l'identite du titre,
+    et la destination change d'une execution a l'autre."""
+    id: int | str | None
     score: float
-    tidal_title: str = ""
-    tidal_artist: str = ""
+    title: str = ""
+    artist: str = ""
     album_id: int | str | None = None
     threshold: float = 0.0   # seuil sous lequel la decision a ete prise
 
