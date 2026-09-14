@@ -80,11 +80,11 @@ def match_tracks(lib: Library, needed: set[str], dest: Destination, store: Store
             cache[key] = asdict(m)
             counter[0] += 1
             i = counter[0]
-            flag = "✓" if m.tidal_id else "✗"
+            flag = "✓" if m.id else "✗"
             print(t("match.line", i=i, total=len(todo), flag=flag,
                     artist=a.artist, name=a.name, score=m.score)
-                  + (t("match.line_target", tidal_artist=m.tidal_artist,
-                       tidal_title=m.tidal_title) if m.tidal_id else ""))
+                  + (t("match.line_target", artist=m.artist,
+                       title=m.title) if m.id else ""))
             if i % 50 == 0:
                 store.save_cache(cache)
 
@@ -105,7 +105,7 @@ def match_tracks(lib: Library, needed: set[str], dest: Destination, store: Store
 def write_report(lib: Library, needed: set[str], cache: dict, path: Path) -> int:
     """Ecrit le CSV des titres non trouves. Renvoie leur nombre."""
     unmatched = {tid: lib.tracks[tid] for tid in needed
-                 if not cache.get(dedup_key(lib.tracks[tid]), {}).get("tidal_id")}
+                 if not cache.get(dedup_key(lib.tracks[tid]), {}).get("id")}
     pl_of = defaultdict(list)
     for p in lib.playlists:
         for tid in p.track_ids:
@@ -123,12 +123,12 @@ def write_report(lib: Library, needed: set[str], cache: dict, path: Path) -> int
 
 
 def push_playlists(lib: Library, dest: Destination, cache: dict, opts: Options) -> None:
-    print("\n" + t("section.playlists"))
+    print("\n" + t("section.playlists", service=dest.name))
     existing = {} if opts.dry_run else dest.existing_playlists()
     for p in lib.playlists:
         ids, seen = [], set()
         for tid in p.track_ids:
-            x = cache.get(dedup_key(lib.tracks[tid]), {}).get("tidal_id")
+            x = cache.get(dedup_key(lib.tracks[tid]), {}).get("id")
             if x and x not in seen:
                 ids.append(x)
                 seen.add(x)
@@ -142,14 +142,14 @@ def push_playlists(lib: Library, dest: Destination, cache: dict, opts: Options) 
 
 
 def push_favorites(lib: Library, dest: Destination, cache: dict, opts: Options) -> None:
-    print("\n" + t("section.favorites"))
+    print("\n" + t("section.favorites", service=dest.name))
     src = lib.tracks.values() if opts.favorites else (a for a in lib.tracks.values() if a.loved)
-    ids = list(dict.fromkeys(x for x in (cache.get(dedup_key(a), {}).get("tidal_id") for a in src) if x))
+    ids = list(dict.fromkeys(x for x in (cache.get(dedup_key(a), {}).get("id") for a in src) if x))
     dest.favorite_tracks(ids)
 
 
 def push_albums(lib: Library, dest: Destination, cache: dict, store: Store, opts: Options) -> None:
-    print("\n" + t("section.albums"))
+    print("\n" + t("section.albums", service=dest.name))
     if lib.albums:
         upcs = {al.upc for al in lib.albums if al.upc}
         todo_upc = {u for u in upcs if "upc:" + u not in cache}

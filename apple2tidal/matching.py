@@ -103,7 +103,7 @@ def needs_match(entry: dict | None, threshold: float, rematch: bool) -> bool:
     """
     if not entry:
         return True
-    matched = entry.get("tidal_id") is not None
+    matched = entry.get("id") is not None
     if rematch and not matched:
         return True
     return matched != (entry.get("score", 0.0) >= threshold)

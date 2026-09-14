@@ -1,9 +1,10 @@
 """
-apple2tidal — transfère bibliothèque, playlists et favoris d'Apple Music vers TIDAL.
+apple2tidal — transfère une bibliothèque musicale d'un service vers un autre.
 
-Source   : export XML de l'app Musique (Fichier > Bibliothèque > Exporter la bibliothèque…)
-           OU export JSON depuis music.apple.com via export_apple_music.js (contient les ISRC → matching exact)
-Cible    : TIDAL via la lib non officielle `tidalapi` (login OAuth navigateur)
+Sources      : export Apple Music (.xml de l'app Musique, ou .json de
+               export_apple_music.js, qui porte les ISRC), ou Spotify via son API.
+Destinations : TIDAL via la lib non officielle `tidalapi`, ou Spotify.
+Défaut       : Apple Music → TIDAL, comme avant l'arrivée de --from et --to.
 
 Usage rapide :
     apple2tidal Bibliothèque.xml --dry-run          # analyse + matching, rien n'est écrit
@@ -11,8 +12,10 @@ Usage rapide :
     apple2tidal Bibliothèque.xml --favorites         # toute la bibliothèque en favoris
     apple2tidal Bibliothèque.xml --loved --albums    # titres aimés + albums complets
     apple2tidal Bibliothèque.xml --all               # tout
+    apple2tidal --from spotify --all                 # sans fichier : tout vient de l'API
 
-Le matching est mis en cache dans .apple2tidal/tidal/matches.json : relancer = reprendre.
+Le matching est mis en cache sous .apple2tidal/<destination>/matches.json, indexé
+sur l'ISRC : relancer = reprendre, et changer de source ne le périme pas.
 """
 
 from __future__ import annotations
@@ -27,8 +30,27 @@ from .engine import Options, transfer
 from .matching import DEFAULT_THRESHOLD
 from .messages import LANGUAGES, resolve_lang, set_lang, t
 from .providers.apple import AppleExport
+from .providers.spotify import Spotify
 from .providers.tidal import Tidal
 from .state import Store
+
+SOURCES = ("apple", "spotify")
+DESTINATIONS = ("spotify", "tidal")
+
+
+def build_source(args):
+    """La source demandee. Apple se lit dans un fichier, les autres par leur API."""
+    if args.source == "apple":
+        return AppleExport(args.library)
+    return Spotify(Store(state.STATE_DIR / args.source), dry_run=args.dry_run,
+                   delay=args.delay, workers=args.workers)
+
+
+def build_destination(args, store: Store):
+    """La destination demandee. C'est elle qui porte le cache des matchs."""
+    if args.destination == "spotify":
+        return Spotify(store, dry_run=args.dry_run, delay=args.delay, workers=args.workers)
+    return Tidal(store, dry_run=args.dry_run, delay=args.delay, workers=args.workers)
 
 
 def confirmed() -> bool:
@@ -50,6 +72,10 @@ def main():
 
     ap = argparse.ArgumentParser(prog="apple2tidal", description=t("cli.description"))
     ap.add_argument("library", type=Path, nargs="?", help=t("cli.help.library"))
+    ap.add_argument("--from", dest="source", default="apple", choices=SOURCES,
+                    help=t("cli.help.source"))
+    ap.add_argument("--to", dest="destination", default="tidal", choices=DESTINATIONS,
+                    help=t("cli.help.destination"))
     ap.add_argument("--playlists", action="store_true", help=t("cli.help.playlists"))
     ap.add_argument("--favorites", action="store_true", help=t("cli.help.favorites"))
     ap.add_argument("--loved", action="store_true", help=t("cli.help.loved"))
@@ -77,7 +103,9 @@ def main():
     if args.wipe and (args.all or args.playlists or args.favorites or args.loved
                       or args.albums or args.reset):
         ap.error(t("cli.error.wipe_with_import"))
-    if not args.wipe and args.library is None:
+    if args.source == args.destination:
+        ap.error(t("cli.error.same_service", service=args.source))
+    if args.source == "apple" and not args.wipe and args.library is None:
         ap.error(t("cli.error.library_missing"))
     if args.all:
         args.playlists = args.favorites = args.albums = True
@@ -87,15 +115,15 @@ def main():
             or args.albums or args.dry_run):
         ap.error(t("cli.error.no_action"))
 
-    store = Store(state.STATE_DIR / "tidal")
+    store = Store(state.STATE_DIR / args.destination)
 
     # ---- Mode --wipe : vider le compte, puis s'arrêter
     if args.wipe:
-        tidal = Tidal(store, dry_run=args.dry_run, delay=args.delay, workers=args.workers)
+        dest = build_destination(args, store)
         if args.dry_run:
-            print("\n" + t("main.dry_run_notice"))
-        print(t("main.reading_account"))
-        snap = tidal.snapshot(workers=args.workers)
+            print("\n" + t("main.dry_run_notice", service=dest.name))
+        print(t("main.reading_account", service=dest.name))
+        snap = dest.snapshot(workers=args.workers)
         own = [p for p in snap["playlists"] if p["own"]]
         foll = snap.get("followed_playlists", [])
         print(t("main.backup_written", path=snap["path"]))
@@ -110,32 +138,33 @@ def main():
             print("\n" + t("confirm.wipe_warning"))
             if not confirmed():
                 sys.exit(t("confirm.cancelled"))
-        tidal.wipe(snap, playlists=True, favorites=True, albums=True, only_names=None,
+        dest.wipe(snap, playlists=True, favorites=True, albums=True, only_names=None,
                    artists=True, followed=not args.keep_followed)
-        ok = tidal.verify_wipe(snap, playlists=True, favorites=True, albums=True)
+        ok = dest.verify_wipe(snap, playlists=True, favorites=True, albums=True)
         print("\n" + (t("main.done") if ok else t("main.done_with_errors")))
         return
 
-    lib = AppleExport(args.library).read()
+    source = build_source(args)
+    lib = source.read()
     n_isrc = sum(1 for a in lib.tracks.values() if a.isrc)
     if args.skip_smart:
         lib.playlists = [p for p in lib.playlists if not p.smart]
     if args.only:
         wanted = {n.lower() for n in args.only}
         lib.playlists = [p for p in lib.playlists if p.name.lower() in wanted]
-    print(t("apple.summary", tracks=len(lib.tracks), isrc=n_isrc, playlists=len(lib.playlists)))
+    print(t("source.summary", service=source.name, tracks=len(lib.tracks), isrc=n_isrc, playlists=len(lib.playlists)))
     for p in lib.playlists:
-        print(t("apple.playlist_line", name=p.name, n=len(p.track_ids),
-                smart=t("apple.smart_tag") if p.smart else ""))
+        print(t("source.playlist_line", name=p.name, n=len(p.track_ids),
+                smart=t("source.smart_tag") if p.smart else ""))
 
-    tidal = Tidal(store, dry_run=args.dry_run, delay=args.delay, workers=args.workers)
+    dest = build_destination(args, store)
 
     # ---- Reset du compte TIDAL (avant tout import)
     if args.reset:
         if args.dry_run:
-            print("\n" + t("main.dry_run_notice"))
-        print("\n" + t("main.current_account"))
-        snap = tidal.snapshot(workers=args.workers)
+            print("\n" + t("main.dry_run_notice", service=dest.name))
+        print("\n" + t("main.current_account", service=dest.name))
+        snap = dest.snapshot(workers=args.workers)
         own = [p for p in snap["playlists"] if p["own"]]
         only = {p.name for p in lib.playlists} if args.reset_scope == "imported" else None
         to_del = [p for p in own if only is None or p["name"] in only]
@@ -150,14 +179,14 @@ def main():
             print("\n" + t("confirm.reset_warning"))
             if not confirmed():
                 sys.exit(t("confirm.cancelled"))
-        tidal.wipe(snap, playlists=args.playlists, favorites=(args.favorites or args.loved),
+        dest.wipe(snap, playlists=args.playlists, favorites=(args.favorites or args.loved),
                    albums=args.albums, only_names=only)
-        if not tidal.verify_wipe(snap, playlists=args.playlists,
+        if not dest.verify_wipe(snap, playlists=args.playlists,
                                  favorites=(args.favorites or args.loved),
                                  albums=args.albums, only_names=only):
             sys.exit(t("main.import_cancelled"))
 
-    transfer(lib, tidal, store, Options(
+    transfer(lib, dest, store, Options(
         playlists=args.playlists, favorites=args.favorites, loved=args.loved,
         albums=args.albums, overwrite=args.overwrite, threshold=args.threshold,
         rematch=args.rematch, workers=args.workers, dry_run=args.dry_run,

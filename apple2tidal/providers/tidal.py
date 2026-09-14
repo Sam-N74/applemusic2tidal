@@ -39,6 +39,8 @@ def _candidate(track: tidalapi.Track) -> Candidate:
 
 
 class Tidal:
+    name = "TIDAL"
+
     def __init__(self, store: Store, dry_run: bool, delay: float = 0.0, workers: int = 8):
         self.store = store
         self.dry = dry_run

@@ -57,8 +57,8 @@ def test_parse_albums_on_xml_returns_nothing(tmp_path):
 
 
 # --------------------------------------------------------------- resolution
-def cached(track, tidal_id=1, album_id=10):
-    return {a2t.dedup_key(track): {"tidal_id": tidal_id, "album_id": album_id}}
+def cached(track, track_id=1, album_id=10):
+    return {a2t.dedup_key(track): {"id": track_id, "album_id": album_id}}
 
 
 def test_resolve_albums_uses_the_upc_first(mk_track):
