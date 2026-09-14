@@ -321,7 +321,8 @@ def test_an_upc_finds_the_album(account):
     assert spotify.album_by_upc("999") is None
 
 
-def test_a_search_failure_costs_no_match_but_no_crash(account, capsys):
+def test_a_search_failure_costs_no_match_but_no_crash(account, capsys, monkeypatch):
+    monkeypatch.setattr(sp.time, "sleep", lambda s: None)   # le repli n'est pas le sujet
     fake, spotify = account()
     fake.answers = [FakeResponse(500, {}), FakeResponse(500, {}), FakeResponse(500, {}),
                     FakeResponse(500, {}), FakeResponse(500, {})]

@@ -309,7 +309,9 @@ class SpotifyApi:
                 self.auth.forget()      # jeton revoque : une seule nouvelle tentative
                 continue
             if r.status_code >= 500 and i < retries - 1:
-                time.sleep(2 ** i)
+                # plafonne a 4 s : cinq tentatives qui doublent, c'est un quart
+                # de minute d'attente muette sur une recherche qui n'aboutira pas.
+                time.sleep(min(2 ** i, 4))
                 continue
             if r.status_code >= 400:
                 raise SpotifyError(t("spotify.http_error", status=r.status_code,
