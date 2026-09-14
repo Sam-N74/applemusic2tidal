@@ -19,30 +19,36 @@ DEFAULT_LANG = "en"
 
 EN: dict[str, str] = {
     # ---------------------------------------------------------------- argparse
-    "cli.description": "Apple Music → TIDAL",
+    "cli.description": "Transfers playlists, library, loved tracks and albums between "
+                       "music services",
     "cli.help.library": "Export .xml (Music app) or .json (export_apple_music.js). "
-                        "Not needed with --wipe.",
+                        "Only needed when the source is apple.",
+    "cli.help.source": "Where the library is read from: apple (an export file) or "
+                       "spotify. Default apple.",
+    "cli.help.destination": "Where it is written: spotify or tidal. Default tidal.",
     "cli.help.playlists": "Recreate the playlists",
-    "cli.help.favorites": "Whole library → TIDAL favorite tracks",
+    "cli.help.favorites": "Whole library → favorite tracks on the destination",
     "cli.help.loved": "Only 'loved' tracks → favorites",
-    "cli.help.albums": "Albums listed by the export → favorite albums (matched by UPC; "
-                       "guessed from the tracks when the export lists none)",
+    "cli.help.albums": "Albums listed by the source → favorite albums (matched by UPC; "
+                       "guessed from the tracks when the source lists none)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Only process these playlist name(s)",
     "cli.help.skip_smart": "Skip smart playlists",
     "cli.help.overwrite": "Clear and recreate existing playlists",
-    "cli.help.wipe": "DESTRUCTIVE: wipes the TIDAL account entirely and stops (no import)",
+    "cli.help.wipe": "DESTRUCTIVE: wipes the destination account entirely and stops "
+                     "(no import)",
     "cli.help.keep_followed": "With --wipe: keep the playlists you follow from other users",
-    "cli.help.reset": "DESTRUCTIVE: wipes the TIDAL account (playlists you created + favorites) "
+    "cli.help.reset": "DESTRUCTIVE: wipes the destination account (playlists you created + "
+                      "favorites) "
                       "before importing",
-    "cli.help.reset_scope": "imported (default) = only delete playlists named after an Apple "
+    "cli.help.reset_scope": "imported (default) = only delete playlists named after a source "
                             "playlist; all = delete every playlist you own",
     "cli.help.yes": "Skip the confirmation prompt for --reset",
     "cli.help.threshold": "Minimum match score (0-100), default {default:.0f}",
     "cli.help.rematch": "Ignore the cache and search again for the unmatched tracks",
-    "cli.help.dry_run": "Write nothing to TIDAL",
+    "cli.help.dry_run": "Write nothing to the destination",
     "cli.help.delay": "Pause between requests (s), 0 by default",
-    "cli.help.workers": "Parallel TIDAL requests (default 8; lower it if rate-limited)",
+    "cli.help.workers": "Parallel requests to the service (default 8; lower it if rate-limited)",
     "cli.help.lang": "Output language: en (default) or fr. Also read from APPLE2TIDAL_LANG.",
 
     # ----------------------------------------------------------- refus argparse
@@ -51,6 +57,8 @@ EN: dict[str, str] = {
     "cli.error.library_missing": "missing export path",
     "cli.error.reset_needs_action": "--reset goes with the matching import action "
                                     "(e.g. --reset --all)",
+    "cli.error.same_service": "--from and --to must differ: {service} cannot be both the source "
+                              "and the destination",
     "cli.error.no_action": "Specify at least one action: --playlists / --favorites / --loved / "
                            "--albums / --all / --wipe",
 
@@ -59,13 +67,35 @@ EN: dict[str, str] = {
     "confirm.prompt": "  Type {word} to confirm: ",
     "confirm.wipe_warning": "  The account will be wiped and NOTHING will be re-imported. "
                             "This is IRREVERSIBLE.",
-    "confirm.reset_warning": "  This is IRREVERSIBLE. TIDAL has no trash bin.",
+    "confirm.reset_warning": "  apple2tidal cannot undo this. The backup above is your only "
+                             "copy of what is about to go.",
     "confirm.cancelled": "  Cancelled, nothing was touched.",
 
     # ------------------------------------------------------------------- TIDAL
     "tidal.connected": "[TIDAL] connected: {user}",
     "tidal.login_failed": "TIDAL login failed.",
     "tidal.api_refused": "the TIDAL API refused the operation (returned False)",
+
+    # ----------------------------------------------------------------- Spotify
+    "spotify.connected": "[Spotify] connected: {user}",
+    "spotify.no_client_id": "Spotify needs a client ID of your own: an app in development mode "
+                            "only works for the five accounts its owner allows.",
+    "spotify.client_id_step1": "  1. open https://developer.spotify.com/dashboard, create an app",
+    "spotify.client_id_step2": "  2. give it http://127.0.0.1 as a redirect URI, with no port",
+    "spotify.client_id_step3": "  3. set {env}, or write its ID into {path}",
+    "spotify.opening_browser": "[Spotify] opening your browser to authorize apple2tidal…",
+    "spotify.waiting_callback": "  waiting for the answer on {redirect} — "
+                                "paste this link if nothing opened:",
+    "spotify.callback_page": "apple2tidal is authorized. You can close this tab.",
+    "spotify.auth_timeout": "Spotify authorization got no answer within {seconds:.0f}s.",
+    "spotify.auth_failed": "Spotify authorization failed: {error}",
+    "spotify.state_mismatch": "the answer did not carry back the expected state",
+    "spotify.token_failed": "Spotify refused the token request ({status}): {body}",
+    "spotify.http_error": "Spotify answered {status} to {method} {path}",
+    "spotify.reading": "[Spotify] reading your library…",
+    "spotify.playlists_are_unfollowed": "  note: removing one of your playlists unfollows it, it "
+                                        "is not destroyed — Spotify keeps it recoverable, and the "
+                                        "backup holds its URL",
     "net.rate_limit_pause": "  [rate-limit] pausing {seconds}s",
     "search.error": "  [search err] {query!r}: {error}",
 
@@ -79,6 +109,8 @@ EN: dict[str, str] = {
     "label.playlists_unfollowed": "playlists unfollowed",
     "label.favorites_one_by_one": "favorites (one by one)",
     "label.albums_added": "albums added",
+    "label.favorites_added": "favorites added",
+    "label.playlists_removed": "playlists removed",
 
     # ------------------------------------------------------------- suppression
     "wipe.dry_playlist": '  [dry] would delete playlist "{name}" ({n} tracks)',
@@ -106,7 +138,7 @@ EN: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": '  [dry] playlist "{name}": {n} tracks',
     "playlist.exists": '  [skip] "{name}" already exists (--overwrite to clear and recreate it)',
-    "playlist.ambiguous": '  [skip] {n} TIDAL playlists are named "{name}": nothing was touched, '
+    "playlist.ambiguous": '  [skip] {n} playlists are named "{name}": nothing was touched, '
                           "rename or delete one and run again",
     "playlist.created": '  [ok] "{name}": {n} tracks',
     "playlist.no_match": '  [skip] "{name}": no track matched',
@@ -139,14 +171,14 @@ EN: dict[str, str] = {
     "match.report": "[match] {found}/{total} matched — unmatched listed in {path}",
 
     # -------------------------------------------------------------------- Apple
-    "apple.summary": "[Apple] {tracks} tracks ({isrc} with ISRC), {playlists} playlists",
-    "apple.playlist_line": "   - {name} ({n}){smart}",
-    "apple.smart_tag": " [smart]",
+    "source.summary": "[{service}] {tracks} tracks ({isrc} with ISRC), {playlists} playlists",
+    "source.playlist_line": "   - {name} ({n}){smart}",
+    "source.smart_tag": " [smart]",
 
     # ------------------------------------------------------------ déroulé général
-    "section.playlists": "[TIDAL] playlists",
-    "section.favorites": "[TIDAL] favorites",
-    "section.albums": "[TIDAL] albums",
+    "section.playlists": "[{service}] playlists",
+    "section.favorites": "[{service}] favorites",
+    "section.albums": "[{service}] albums",
     "albums.detected": "  {n} full albums detected",
     "albums.line": "  - {artist} — {name}  [{source}]",
     "albums.resolving": "  looking up {n} albums by UPC ({cached} already known)…",
@@ -154,9 +186,9 @@ EN: dict[str, str] = {
     "albums.source_tracks": "guessed from tracks",
     "albums.no_declared_list": "  this export lists no albums: they are guessed from the "
                                "tracks (the JSON export from music.apple.com lists them)",
-    "main.dry_run_notice": "[TIDAL] --dry-run active: SIMULATION, nothing will be deleted.",
-    "main.reading_account": "[TIDAL] reading account state…",
-    "main.current_account": "[TIDAL] current account state…",
+    "main.dry_run_notice": "[{service}] --dry-run active: SIMULATION, nothing will be deleted.",
+    "main.reading_account": "[{service}] reading account state…",
+    "main.current_account": "[{service}] current account state…",
     "main.backup_written": "  backup written to {path}",
     "main.playlist_line": "    - {name} ({n})",
     "main.import_cancelled": "Import cancelled: the account was not wiped as requested.",
@@ -166,30 +198,36 @@ EN: dict[str, str] = {
 
 FR: dict[str, str] = {
     # ---------------------------------------------------------------- argparse
-    "cli.description": "Apple Music → TIDAL",
+    "cli.description": "Transfère playlists, bibliothèque, titres aimés et albums "
+                       "entre services de musique",
     "cli.help.library": "Export .xml (app Musique) ou .json (export_apple_music.js). "
-                        "Inutile avec --wipe.",
+                        "Nécessaire seulement si la source est apple.",
+    "cli.help.source": "D'où la bibliothèque est lue : apple (un fichier d'export) ou "
+                       "spotify. Défaut apple.",
+    "cli.help.destination": "Où elle est écrite : spotify ou tidal. Défaut tidal.",
     "cli.help.playlists": "Recréer les playlists",
-    "cli.help.favorites": "Toute la bibliothèque → titres favoris TIDAL",
+    "cli.help.favorites": "Toute la bibliothèque → titres favoris sur la destination",
     "cli.help.loved": "Seulement les titres 'aimés' → favoris",
-    "cli.help.albums": "Albums listés par l'export → albums favoris (retrouvés par UPC ; "
-                       "déduits des titres si l'export n'en liste aucun)",
+    "cli.help.albums": "Albums listés par la source → albums favoris (retrouvés par UPC ; "
+                       "déduits des titres si la source n'en liste aucun)",
     "cli.help.all": "= --playlists --favorites --albums",
     "cli.help.only": "Nom(s) de playlist à traiter uniquement",
     "cli.help.skip_smart": "Ignorer les playlists intelligentes",
     "cli.help.overwrite": "Vider et recréer les playlists existantes",
-    "cli.help.wipe": "DESTRUCTIF : vide entièrement le compte TIDAL et s'arrête (aucun import)",
+    "cli.help.wipe": "DESTRUCTIF : vide entièrement le compte de destination et s'arrête "
+                     "(aucun import)",
     "cli.help.keep_followed": "Avec --wipe : garder les playlists d'autres utilisateurs que tu suis",
-    "cli.help.reset": "DESTRUCTIF : vide le compte TIDAL (playlists créées par toi + favoris) "
+    "cli.help.reset": "DESTRUCTIF : vide le compte de destination (playlists créées par toi + "
+                      "favoris) "
                       "avant l'import",
     "cli.help.reset_scope": "imported (défaut) = ne supprime que les playlists portant le nom "
-                            "d'une playlist Apple ; all = supprime toutes tes playlists",
+                            "d'une playlist de la source ; all = supprime toutes tes playlists",
     "cli.help.yes": "Ne pas demander confirmation pour --reset",
     "cli.help.threshold": "Score min de matching (0-100), défaut {default:.0f}",
     "cli.help.rematch": "Ignorer le cache et rechercher à nouveau les non-trouvés",
-    "cli.help.dry_run": "Ne rien écrire sur TIDAL",
+    "cli.help.dry_run": "Ne rien écrire sur la destination",
     "cli.help.delay": "Pause entre requêtes (s), 0 par défaut",
-    "cli.help.workers": "Requêtes TIDAL en parallèle (défaut 8 ; baisser si rate-limit)",
+    "cli.help.workers": "Requêtes en parallèle vers le service (défaut 8 ; baisser si rate-limit)",
     "cli.help.lang": "Langue de la sortie : en (défaut) ou fr. Lue aussi depuis APPLE2TIDAL_LANG.",
 
     # ----------------------------------------------------------- refus argparse
@@ -198,6 +236,8 @@ FR: dict[str, str] = {
     "cli.error.library_missing": "chemin de l'export manquant",
     "cli.error.reset_needs_action": "--reset s'utilise avec l'action d'import correspondante "
                                     "(ex : --reset --all)",
+    "cli.error.same_service": "--from et --to doivent différer : {service} ne peut pas être à la "
+                              "fois la source et la destination",
     "cli.error.no_action": "Précise au moins une action : --playlists / --favorites / --loved / "
                            "--albums / --all / --wipe",
 
@@ -205,13 +245,35 @@ FR: dict[str, str] = {
     "confirm.word": "SUPPRIMER",
     "confirm.prompt": "  Tape {word} pour confirmer : ",
     "confirm.wipe_warning": "  Le compte sera vidé et RIEN ne sera réimporté. C'est IRRÉVERSIBLE.",
-    "confirm.reset_warning": "  C'est IRRÉVERSIBLE. TIDAL ne propose pas de corbeille.",
+    "confirm.reset_warning": "  apple2tidal ne sait pas annuler ça. La sauvegarde ci-dessus est "
+                             "ta seule copie de ce qui va partir.",
     "confirm.cancelled": "  Annulé, rien n'a été touché.",
 
     # ------------------------------------------------------------------- TIDAL
     "tidal.connected": "[TIDAL] connecté : {user}",
     "tidal.login_failed": "Connexion TIDAL échouée.",
     "tidal.api_refused": "l'API TIDAL a refusé l'opération (retour False)",
+
+    # ----------------------------------------------------------------- Spotify
+    "spotify.connected": "[Spotify] connecté : {user}",
+    "spotify.no_client_id": "Spotify demande un client ID à toi : une app en mode développement "
+                            "ne marche que pour les cinq comptes que son propriétaire autorise.",
+    "spotify.client_id_step1": "  1. ouvre https://developer.spotify.com/dashboard, crée une app",
+    "spotify.client_id_step2": "  2. donne-lui http://127.0.0.1 comme redirect URI, sans port",
+    "spotify.client_id_step3": "  3. renseigne {env}, ou écris son ID dans {path}",
+    "spotify.opening_browser": "[Spotify] ouverture du navigateur pour autoriser apple2tidal…",
+    "spotify.waiting_callback": "  attente de la réponse sur {redirect} — "
+                                "colle ce lien si rien ne s'est ouvert :",
+    "spotify.callback_page": "apple2tidal est autorisé. Tu peux fermer cet onglet.",
+    "spotify.auth_timeout": "L'autorisation Spotify n'a rien reçu en {seconds:.0f}s.",
+    "spotify.auth_failed": "Autorisation Spotify échouée : {error}",
+    "spotify.state_mismatch": "la réponse ne rapportait pas l'état attendu",
+    "spotify.token_failed": "Spotify a refusé la demande de jeton ({status}) : {body}",
+    "spotify.http_error": "Spotify a répondu {status} à {method} {path}",
+    "spotify.reading": "[Spotify] lecture de ta bibliothèque…",
+    "spotify.playlists_are_unfollowed": "  note : retirer une de tes playlists la désuit, elle "
+                                        "n'est pas détruite — Spotify la garde récupérable, et la "
+                                        "sauvegarde en conserve l'URL",
     "net.rate_limit_pause": "  [rate-limit] pause {seconds}s",
     "search.error": "  [search err] {query!r}: {error}",
 
@@ -225,6 +287,8 @@ FR: dict[str, str] = {
     "label.playlists_unfollowed": "playlists non suivies",
     "label.favorites_one_by_one": "favoris (unitaire)",
     "label.albums_added": "albums ajoutés",
+    "label.favorites_added": "favoris ajoutés",
+    "label.playlists_removed": "playlists retirées",
 
     # ------------------------------------------------------------- suppression
     "wipe.dry_playlist": "  [dry] supprimerait la playlist « {name} » ({n} titres)",
@@ -253,7 +317,7 @@ FR: dict[str, str] = {
     # --------------------------------------------------------------- playlists
     "playlist.dry": "  [dry] playlist « {name} » : {n} titres",
     "playlist.exists": "  [skip] « {name} » existe déjà (--overwrite pour la vider et recréer)",
-    "playlist.ambiguous": "  [skip] {n} playlists TIDAL portent le nom « {name} » : rien n'a "
+    "playlist.ambiguous": "  [skip] {n} playlists portent le nom « {name} » : rien n'a "
                           "été touché, renomme ou supprime l'une d'elles puis relance",
     "playlist.created": "  [ok] « {name} » : {n} titres",
     "playlist.no_match": "  [skip] « {name} » : aucun titre trouvé",
@@ -286,14 +350,14 @@ FR: dict[str, str] = {
     "match.report": "[match] {found}/{total} trouvés — non trouvés listés dans {path}",
 
     # -------------------------------------------------------------------- Apple
-    "apple.summary": "[Apple] {tracks} titres ({isrc} avec ISRC), {playlists} playlists",
-    "apple.playlist_line": "   - {name} ({n}){smart}",
-    "apple.smart_tag": " [smart]",
+    "source.summary": "[{service}] {tracks} titres ({isrc} avec ISRC), {playlists} playlists",
+    "source.playlist_line": "   - {name} ({n}){smart}",
+    "source.smart_tag": " [smart]",
 
     # ------------------------------------------------------------ déroulé général
-    "section.playlists": "[TIDAL] playlists",
-    "section.favorites": "[TIDAL] favoris",
-    "section.albums": "[TIDAL] albums",
+    "section.playlists": "[{service}] playlists",
+    "section.favorites": "[{service}] favoris",
+    "section.albums": "[{service}] albums",
     "albums.detected": "  {n} albums complets détectés",
     "albums.line": "  - {artist} — {name}  [{source}]",
     "albums.resolving": "  recherche de {n} albums par UPC ({cached} déjà connus)…",
@@ -301,9 +365,9 @@ FR: dict[str, str] = {
     "albums.source_tracks": "déduit des titres",
     "albums.no_declared_list": "  cet export ne liste pas les albums : ils sont déduits des "
                                "titres (l'export JSON de music.apple.com les liste)",
-    "main.dry_run_notice": "[TIDAL] --dry-run actif : SIMULATION, rien ne sera supprimé.",
-    "main.reading_account": "[TIDAL] lecture de l'état du compte…",
-    "main.current_account": "[TIDAL] état actuel du compte…",
+    "main.dry_run_notice": "[{service}] --dry-run actif : SIMULATION, rien ne sera supprimé.",
+    "main.reading_account": "[{service}] lecture de l'état du compte…",
+    "main.current_account": "[{service}] état actuel du compte…",
     "main.backup_written": "  sauvegarde écrite dans {path}",
     "main.playlist_line": "    - {name} ({n})",
     "main.import_cancelled": "Import annulé : le compte n'a pas été vidé comme demandé.",

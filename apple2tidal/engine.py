@@ -123,7 +123,7 @@ def write_report(lib: Library, needed: set[str], cache: dict, path: Path) -> int
 
 
 def push_playlists(lib: Library, dest: Destination, cache: dict, opts: Options) -> None:
-    print("\n" + t("section.playlists"))
+    print("\n" + t("section.playlists", service=dest.name))
     existing = {} if opts.dry_run else dest.existing_playlists()
     for p in lib.playlists:
         ids, seen = [], set()
@@ -142,14 +142,14 @@ def push_playlists(lib: Library, dest: Destination, cache: dict, opts: Options) 
 
 
 def push_favorites(lib: Library, dest: Destination, cache: dict, opts: Options) -> None:
-    print("\n" + t("section.favorites"))
+    print("\n" + t("section.favorites", service=dest.name))
     src = lib.tracks.values() if opts.favorites else (a for a in lib.tracks.values() if a.loved)
     ids = list(dict.fromkeys(x for x in (cache.get(dedup_key(a), {}).get("id") for a in src) if x))
     dest.favorite_tracks(ids)
 
 
 def push_albums(lib: Library, dest: Destination, cache: dict, store: Store, opts: Options) -> None:
-    print("\n" + t("section.albums"))
+    print("\n" + t("section.albums", service=dest.name))
     if lib.albums:
         upcs = {al.upc for al in lib.albums if al.upc}
         todo_upc = {u for u in upcs if "upc:" + u not in cache}
